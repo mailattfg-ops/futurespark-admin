@@ -2,47 +2,59 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Filter, MoreHorizontal, ArrowUpRight, Loader2, AlertCircle } from "lucide-react";
+import {
+  Search,
+  Trash2,
+  AlertCircle,
+  Mail,
+  User,
+  Calendar,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  BookOpen,
+} from "lucide-react";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface ScheduledClass {
+  id: string;
+  studentId: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  programId: string;
+  mentor: { firstName: string; lastName: string };
+}
 
 interface StudentItem {
-  id: string | number;
-  name: string;
+  id: string;
+  firstName: string;
+  lastName: string;
   email: string;
-  courses: number;
-  progress: number;
-  status: string;
-  joined: string;
+  createdAt: string;
+  parentAccount?: {
+    email: string;
+    profiles?: Array<{
+      firstName: string;
+      lastName: string;
+      relationship: string | null;
+    }>;
+  };
+  // Enriched on the client after fetching schedules
+  schedules?: ScheduledClass[];
 }
 
-const mockStudents: StudentItem[] = [];
-
-const statusStyle: Record<string, string> = {
-  "Active": "bg-[#00d4aa]/15 text-[#00d4aa] border-[#00d4aa]/25",
-  "At Risk": "bg-red-500/15   text-red-400   border-red-500/25",
-  "Completed": "bg-[#7c5cfc]/15 text-[#a78bfa] border-[#7c5cfc]/25",
-};
-
-function ProgressBar({ value }: { value: number }) {
-  const color = value >= 80 ? "#00d4aa" : value >= 50 ? "#7c5cfc" : "#ef4444";
-  return (
-    <div className="w-24 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-      <div
-        className="h-full rounded-full transition-all"
-        style={{ width: `${value}%`, backgroundColor: color }}
-      />
-    </div>
-  );
-}
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function StudentsPage() {
   const router = useRouter();
-  const [studentsList, setStudentsList] = useState<StudentItem[]>([]);
+  const [students, setStudents] = useState<StudentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [role, setRole] = useState<string | null>(null);
 
   const getHeaders = () => {
     const tokensStr = localStorage.getItem("tokens");
@@ -53,199 +65,260 @@ export default function StudentsPage() {
     return headers;
   };
 
-  const fetchStudents = async () => {
+  const fetchData = async () => {
     try {
-      const response = await fetch("/api/users?role=STUDENT&limit=100", {
-        headers: getHeaders(),
-      });
+      const headers = getHeaders();
+      const [studRes, schedRes] = await Promise.all([
+        fetch("/api/users/customers/students", { headers }),
+        fetch("/api/schedules", { headers }),
+      ]);
 
-      if (response.status === 401) {
+      if (studRes.status === 401) {
         router.push("/login");
         return;
       }
 
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || "Failed to load dynamic students");
+      const studData = await studRes.json();
+      const schedData = await schedRes.json();
+
+      if (!studData.success) {
+        throw new Error(studData.message || "Failed to load students directory");
       }
 
-      // Map dynamic backend student users
-      const dbStudents: StudentItem[] = data.data.data.map((u: any) => ({
-        id: u.id,
-        name: u.firstName || u.lastName ? `${u.firstName || ""} ${u.lastName || ""}`.trim() : "Enrolled Learner",
-        email: u.email,
-        courses: 1, // Default newly enrolled lead to 1 course interest
-        progress: 0, // Default new student progress
-        status: "Active",
-        joined: new Date(u.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      const schedules: ScheduledClass[] = schedData.success ? schedData.data ?? [] : [];
+
+      // Enrich each student with their scheduled classes
+      const enriched: StudentItem[] = (studData.data ?? []).map((s: StudentItem) => ({
+        ...s,
+        schedules: schedules.filter((sc) => sc.studentId === s.id),
       }));
 
-      // Prepend dynamic students to mock list
-      setStudentsList([...dbStudents, ...mockStudents]);
+      setStudents(enriched);
     } catch (err: any) {
-      console.error(err);
-      // Degrade gracefully to mock list if request fails
-      setStudentsList(mockStudents);
+      setError(err.message || "Failed to connect to backend user API");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStudents();
+    fetchData();
+    const userStr = localStorage.getItem("user");
+    if (userStr) setRole(JSON.parse(userStr).role);
   }, []);
 
-  const filteredStudents = studentsList.filter(s => {
-    const matchesSearch =
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchQuery.toLowerCase());
+  const handleDeleteStudent = async (id: string) => {
+    if (!confirm("Are you sure you want to permanently delete this student account?")) return;
+    try {
+      const res = await fetch(`/api/users/customers/students/${id}`, {
+        method: "DELETE",
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || "Failed to delete student");
+      fetchData();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
 
-    const matchesStatus = statusFilter === "All" || s.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
+  const filteredStudents = students.filter((s) => {
+    const query = searchQuery.toLowerCase();
+    const fullName = `${s.firstName} ${s.lastName}`.toLowerCase();
+    const matchesName = fullName.includes(query) || s.email.toLowerCase().includes(query);
+    const matchesParent =
+      s.parentAccount?.email.toLowerCase().includes(query) ||
+      (s.parentAccount?.profiles?.some((p) =>
+        `${p.firstName} ${p.lastName}`.toLowerCase().includes(query)
+      ) ?? false);
+    return matchesName || matchesParent;
   });
 
-  return (
-    <div className="p-8 w-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Students Directory</h1>
-          <p className="text-white/40 text-sm">Review pipeline enrollments and student directory tracking profiles.</p>
+  // ── Column definitions ────────────────────────────────────────────────────
+
+  const columns: DataTableColumn<StudentItem>[] = [
+    {
+      key: "student",
+      header: "Student",
+      cell: (s) => (
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#00d4aa]/25 to-[#7c5cfc]/20 flex items-center justify-center text-white text-xs font-bold border border-[#00d4aa]/20 shrink-0">
+            {s.firstName[0]}{s.lastName[0]}
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-white">
+              {s.firstName} {s.lastName}
+            </p>
+            <p className="text-[10px] text-white/35 flex items-center gap-1.5 mt-0.5">
+              <Mail className="w-3 h-3" />
+              {s.email}
+            </p>
+          </div>
         </div>
-        <button
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-sm font-medium
-            transition-all duration-200 glow-purple"
-        >
-          <ArrowUpRight className="w-4 h-4" />
-          Export CSV
-        </button>
+      ),
+    },
+    {
+      key: "parent",
+      header: "Linked Parent Account",
+      cell: (s) => (
+        <span className="text-xs text-white/70 flex items-center gap-1.5">
+          <Mail className="w-3.5 h-3.5 text-white/20" />
+          {s.parentAccount?.email || "N/A"}
+        </span>
+      ),
+    },
+    {
+      key: "parentNames",
+      header: "Parent Names",
+      cell: (s) => {
+        const profiles = s.parentAccount?.profiles || [];
+        const names =
+          profiles.map((p) => `${p.firstName} (${p.relationship || "Parent"})`).join(", ") ||
+          "No profiles set";
+        return <span className="text-xs text-white/45 italic">{names}</span>;
+      },
+    },
+    {
+      key: "schedule",
+      header: "Schedule",
+      cell: (s) => {
+        const upcoming = (s.schedules ?? []).filter(
+          (sc) => sc.status === "SCHEDULED" && new Date(sc.startTime) >= new Date()
+        );
+        const completed = (s.schedules ?? []).filter((sc) => sc.status === "COMPLETED").length;
+        const total = (s.schedules ?? []).length;
+
+        if (total === 0) {
+          return (
+            <span className="inline-flex items-center gap-1 text-[10px] text-white/25 italic">
+              <XCircle className="w-3 h-3" /> No classes scheduled
+            </span>
+          );
+        }
+
+        const next = upcoming.sort(
+          (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        )[0];
+
+        return (
+          <div className="space-y-1">
+            {next && (
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[9px] text-blue-400 font-bold uppercase">
+                  <Clock className="w-2.5 h-2.5" />
+                  Upcoming
+                </span>
+                <span className="text-[10px] text-white/60">
+                  {new Date(next.startTime).toLocaleDateString("en-GB", {
+                    weekday: "short",
+                    day: "2-digit",
+                    month: "short",
+                  })}
+                  {" · "}
+                  {next.mentor.firstName} {next.mentor.lastName}
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1 text-[10px] text-white/40">
+                <BookOpen className="w-3 h-3 text-white/20" />
+                {total} total
+              </span>
+              {completed > 0 && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400/70">
+                  <CheckCircle2 className="w-3 h-3" />
+                  {completed} done
+                </span>
+              )}
+              {upcoming.length > 0 && (
+                <span className="inline-flex items-center gap-1 text-[10px] text-blue-400/70">
+                  <Calendar className="w-3 h-3" />
+                  {upcoming.length} upcoming
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "createdAt",
+      header: "Created On",
+      cell: (s) => (
+        <span className="text-[11px] text-white/35 flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5 text-white/20" />
+          {new Date(s.createdAt).toLocaleDateString()}
+        </span>
+      ),
+    },
+    ...(role === "ADMIN"
+      ? [
+          {
+            key: "actions",
+            header: "",
+            headerClassName: "text-right",
+            cellClassName: "text-right",
+            cell: (s: StudentItem) => (
+              <button
+                onClick={() => handleDeleteStudent(s.id)}
+                className="p-1.5 rounded hover:bg-red-500/10 text-white/25 hover:text-red-400 transition-all"
+                title="Delete Student Portal login"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            ),
+          } as DataTableColumn<StudentItem>,
+        ]
+      : []),
+  ];
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="p-8 w-full animate-fadeIn">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-3">
+          <User className="w-8 h-8 text-[#00d4aa]" />
+          Students Directory
+        </h1>
+        <p className="text-white/40 text-sm">
+          Review, search, and manage independent student logins — including their scheduled classes.
+        </p>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6 text-red-400 text-xs">
+        <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6 text-red-400 text-xs">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 mb-5 justify-between">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
-            <input
-              type="text"
-              placeholder="Search students..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-[#161b27] border border-white/[0.08] rounded-xl
-                pl-9 pr-3 py-2.5 text-xs text-white/80 placeholder:text-white/25
-                focus:outline-none focus:border-[#7c5cfc]/40 transition-all"
-            />
-          </div>
-          <button className="flex items-center gap-2 px-3 py-2.5 rounded-xl
-            bg-[#161b27] border border-white/[0.08] text-white/50 text-xs
-            hover:text-white/70 hover:border-white/[0.14] transition-all">
-            <Filter className="w-3.5 h-3.5" />
-            Filter
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1.5 self-start sm:self-auto">
-          {["All", "Active", "At Risk", "Completed"].map(f => (
-            <button
-              key={f}
-              onClick={() => setStatusFilter(f)}
-              className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all
-                ${statusFilter === f
-                  ? "bg-[#7c5cfc]/15 text-[#a78bfa] border border-[#7c5cfc]/25"
-                  : "text-white/35 hover:text-white/60 hover:bg-white/[0.04] border border-transparent"
-                }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
+      {/* Filter Bar */}
+      <div className="relative w-full max-w-sm mb-6">
+        <Search className="absolute left-3.5 top-3 w-4 h-4 text-white/20" />
+        <input
+          type="text"
+          placeholder="Search by student name, email, or parent info..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full bg-[#161b27] border border-white/[0.07] rounded-xl pl-10 pr-4 py-2.5
+            text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-[#7c5cfc] transition-all"
+        />
       </div>
 
-      {/* Table */}
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-[#7c5cfc]" />
-          <p className="text-white/40 text-sm mt-3">Loading student directory...</p>
-        </div>
-      ) : filteredStudents.length === 0 ? (
-        <div className="text-center py-20 bg-[#161b27] border border-white/[0.07] rounded-2xl">
-          <p className="text-white/50 font-medium">No students matched search filter queries.</p>
-        </div>
-      ) : (
-        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-bold text-white/35 uppercase tracking-wider">
-                <th className="px-6 py-4">Student</th>
-                <th className="px-6 py-4">Courses</th>
-                <th className="px-6 py-4">Progress</th>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Joined</th>
-                <th className="px-6 py-4 text-right"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/[0.05]">
-              {filteredStudents.map((s, i) => (
-                <tr
-                  key={s.id}
-                  className="hover:bg-white/[0.01] transition-colors"
-                >
-                  {/* Student */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7c5cfc] to-[#00d4aa]
-                        flex items-center justify-center text-white text-xs font-bold shrink-0">
-                        {s.name.split(" ").map(n => n?.[0] || "").join("")}
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium text-white">{s.name}</p>
-                        <p className="text-[11px] text-white/35">{s.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  {/* Courses */}
-                  <td className="px-6 py-4">
-                    <span className="text-xs text-white/60">{s.courses} enrolled</span>
-                  </td>
-                  {/* Progress */}
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <ProgressBar value={s.progress} />
-                      <span className="text-[10px] text-white/40">{s.progress}%</span>
-                    </div>
-                  </td>
-                  {/* Status */}
-                  <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full
-                      text-[10px] font-semibold border ${statusStyle[s.status] || "bg-white/10"}`}>
-                      {s.status}
-                    </span>
-                  </td>
-                  {/* Joined */}
-                  <td className="px-6 py-4">
-                    <span className="text-[11px] text-white/35">{s.joined}</span>
-                  </td>
-                  {/* Actions */}
-                  <td className="px-6 py-4 text-right">
-                    <button className="text-white/25 hover:text-white/60 transition-colors">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {/* Students Table — DataTable (shadcn) */}
+      <DataTable
+        columns={columns}
+        data={filteredStudents}
+        loading={loading}
+        emptyState={
+          <div className="flex flex-col items-center py-8 gap-2">
+            <User className="w-10 h-10 text-white/20" />
+            <p className="text-white/50 font-medium text-sm">No students registered in the database.</p>
+          </div>
+        }
+      />
     </div>
   );
 }

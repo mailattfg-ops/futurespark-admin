@@ -135,7 +135,7 @@ export default function RolesPage() {
   };
 
   const handleDeleteRole = async (role: Role) => {
-    if (role.name === "ADMIN" || role.name === "STUDENT") {
+    if (role.name === "ADMIN" || role.name === "STUDENT" || role.name === "PARENT") {
       alert("System reserved roles cannot be deleted.");
       return;
     }

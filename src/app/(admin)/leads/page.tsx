@@ -85,9 +85,11 @@ export default function LeadsPage() {
 
   // Student Account Auto-Creation Alert Modal
   const [showStudentCreatedModal, setShowStudentCreatedModal] = useState(false);
-  const [studentCredentials, setStudentCredentials] = useState<{ email: string; password: string } | null>(null);
+  const [studentCredentials, setStudentCredentials] = useState<any | null>(null);
   const [copiedStudentEmail, setCopiedStudentEmail] = useState(false);
   const [copiedStudentPassword, setCopiedStudentPassword] = useState(false);
+  const [copiedParentEmail, setCopiedParentEmail] = useState(false);
+  const [copiedParentPassword, setCopiedParentPassword] = useState(false);
 
   const getHeaders = () => {
     const tokensStr = localStorage.getItem("tokens");
@@ -194,36 +196,43 @@ export default function LeadsPage() {
 
       setShowModal(false);
 
-      // Auto-provision student profile if status set to ENROLLED and wasn't already enrolled
+      // Auto-provision parent profile if status set to ENROLLED and wasn't already enrolled
       const wasAlreadyEnrolled = isEdit && editLead?.status === "ENROLLED";
       if (status === "ENROLLED" && !wasAlreadyEnrolled) {
-        const studentRole = rolesList.find(r => r.name === "STUDENT");
-        if (studentRole) {
-          const tempPassword = "student" + Math.floor(100000 + Math.random() * 900000).toString();
-          try {
-            const userPayload = {
-              email: email.trim(),
-              firstName: firstName.trim(),
-              lastName: lastName.trim(),
-              roleId: studentRole.id,
-              isActive: true,
-              password: tempPassword,
-            };
-            const resUser = await fetch("/api/users", {
-              method: "POST",
-              headers: getHeaders(),
-              body: JSON.stringify(userPayload),
+        const tempParentPassword = "parent" + Math.floor(100000 + Math.random() * 900000).toString();
+        try {
+          const parentPayload = {
+            email: email.trim(),
+            password: tempParentPassword,
+            profiles: [
+              {
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
+                phone: phone ? phone.trim() : null,
+                relationship: "Primary Guardian"
+              }
+            ]
+          };
+
+          // 1. Create Parent Account
+          const resParent = await fetch("/api/users/customers", {
+            method: "POST",
+            headers: getHeaders(),
+            body: JSON.stringify(parentPayload),
+          });
+          const dataParent = await resParent.json();
+
+          if (resParent.ok && dataParent.success) {
+            setStudentCredentials({
+              parentEmail: email.trim(),
+              parentPassword: tempParentPassword
             });
-            const dataUser = await resUser.json();
-            if (resUser.ok && dataUser.success) {
-              setStudentCredentials({ email: email.trim(), password: tempPassword });
-              setShowStudentCreatedModal(true);
-            } else {
-              console.warn("Auto-provisioning student profile skipped:", dataUser.message);
-            }
-          } catch (userErr: any) {
-            console.error("Auto-provisioning student profile failed:", userErr);
+            setShowStudentCreatedModal(true);
+          } else {
+            console.warn("Auto-provisioning parent profile skipped:", dataParent.message);
           }
+        } catch (userErr: any) {
+          console.error("Auto-provisioning parent profile failed:", userErr);
         }
       }
 
@@ -253,14 +262,20 @@ export default function LeadsPage() {
     }
   };
 
-  const handleCopyStudent = (text: string, type: 'email' | 'pass') => {
+  const handleCopyStudent = (text: string, type: 'email' | 'pass' | 'pemail' | 'ppass') => {
     navigator.clipboard.writeText(text);
     if (type === 'email') {
       setCopiedStudentEmail(true);
       setTimeout(() => setCopiedStudentEmail(false), 2000);
-    } else {
+    } else if (type === 'pass') {
       setCopiedStudentPassword(true);
       setTimeout(() => setCopiedStudentPassword(false), 2000);
+    } else if (type === 'pemail') {
+      setCopiedParentEmail(true);
+      setTimeout(() => setCopiedParentEmail(false), 2000);
+    } else if (type === 'ppass') {
+      setCopiedParentPassword(true);
+      setTimeout(() => setCopiedParentPassword(false), 2000);
     }
   };
 
@@ -542,9 +557,10 @@ export default function LeadsPage() {
                   <label className="block text-xs text-white/50 mb-1.5 font-medium">Pipeline Status</label>
                   <select
                     value={status}
+                    disabled={editLead?.status === "ENROLLED"}
                     onChange={e => setStatus(e.target.value as any)}
                     className="w-full bg-[#13161e] border border-white/[0.08] rounded-xl px-3 py-2 text-sm
-                      text-white focus:outline-none focus:border-[#7c5cfc]"
+                      text-white focus:outline-none focus:border-[#7c5cfc] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="NEW">New Lead</option>
                     <option value="CONTACTED">Contacted</option>
@@ -552,6 +568,11 @@ export default function LeadsPage() {
                     <option value="ENROLLED">Enrolled</option>
                     <option value="LOST">Lost</option>
                   </select>
+                  {editLead?.status === "ENROLLED" && (
+                    <span className="text-[10px] text-green-400 mt-1 block">
+                      Enrolled status cannot be changed.
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -595,48 +616,51 @@ export default function LeadsPage() {
 
       {/* ── AUTO STUDENT ACCOUNT PROVISIONING SUCCESS MODAL ────────────────── */}
       {showStudentCreatedModal && studentCredentials && (
-        <div className="fixed inset-0 z-55 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
-          <div className="bg-[#161b27] border border-green-500/30 rounded-2xl w-full max-w-md p-6 shadow-2xl
-            animate-in fade-in zoom-in-95 duration-200 glow-green">
+        <div className="fixed inset-0 z-55 flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="bg-[#161b27] border border-green-500/30 rounded-2xl w-full max-w-md p-6 shadow-2xl glow-green max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-2 mb-3">
               <CheckCircle className="w-5 h-5 text-green-400" />
-              <h3 className="text-base font-bold text-white">Student Enrolled Successfully</h3>
+              <h3 className="text-base font-bold text-white">Lead Enrolled Successfully</h3>
             </div>
             <p className="text-white/45 text-xs mb-5 leading-relaxed">
-              This lead has been updated to <strong>Enrolled</strong>. A new student user profile has been configured automatically. Copy these credentials for student access:
+              This lead has been updated to <strong>Enrolled</strong>. A Parent login has been created. The administrator can add student profiles to this account later in the Parents Section.
             </p>
 
-            <div className="flex flex-col gap-4">
-              {/* Username (Email) */}
-              <div className="bg-[#13161e] border border-white/[0.06] rounded-xl p-3 flex items-center justify-between">
-                <div className="min-w-0">
-                  <span className="text-[10px] text-white/30 font-semibold uppercase tracking-wider block mb-0.5">Username (Email)</span>
-                  <span className="text-xs text-white/85 font-mono select-all truncate">{studentCredentials.email}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopyStudent(studentCredentials.email, 'email')}
-                  className="p-2 rounded bg-white/[0.04] border border-white/[0.08] text-white/40 hover:text-white hover:bg-white/[0.08] transition-all"
-                  title="Copy email"
-                >
-                  {copiedStudentEmail ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              </div>
+            <div className="space-y-4">
+              {/* Parent Credentials */}
+              <div className="border border-white/[0.06] bg-white/[0.01] rounded-xl p-4">
+                <h4 className="text-[10px] font-bold text-[#7c5cfc] uppercase tracking-wider mb-3">Parent Shared Portal Login</h4>
+                <div className="flex flex-col gap-3">
+                  <div className="bg-[#13161e] border border-white/[0.06] rounded-xl p-3 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-white/30 font-semibold uppercase tracking-wider block mb-0.5">Parent Email</span>
+                      <span className="text-xs text-white/85 font-mono select-all truncate">{studentCredentials.parentEmail}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyStudent(studentCredentials.parentEmail, 'pemail')}
+                      className="p-2 rounded bg-white/[0.04] border border-white/[0.08] text-white/40 hover:text-white hover:bg-white/[0.08] transition-all shrink-0"
+                      title="Copy parent email"
+                    >
+                      {copiedParentEmail ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
 
-              {/* Password */}
-              <div className="bg-[#13161e] border border-white/[0.06] rounded-xl p-3 flex items-center justify-between">
-                <div className="min-w-0">
-                  <span className="text-[10px] text-white/30 font-semibold uppercase tracking-wider block mb-0.5">Temporary Password</span>
-                  <span className="text-xs text-white/85 font-mono select-all truncate">{studentCredentials.password}</span>
+                  <div className="bg-[#13161e] border border-white/[0.06] rounded-xl p-3 flex items-center justify-between">
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-white/30 font-semibold uppercase tracking-wider block mb-0.5">Parent Password</span>
+                      <span className="text-xs text-white/85 font-mono select-all truncate">{studentCredentials.parentPassword}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyStudent(studentCredentials.parentPassword, 'ppass')}
+                      className="p-2 rounded bg-white/[0.04] border border-white/[0.08] text-white/40 hover:text-white hover:bg-white/[0.08] transition-all shrink-0"
+                      title="Copy parent password"
+                    >
+                      {copiedParentPassword ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopyStudent(studentCredentials.password, 'pass')}
-                  className="p-2 rounded bg-white/[0.04] border border-white/[0.08] text-white/40 hover:text-white hover:bg-white/[0.08] transition-all"
-                  title="Copy password"
-                >
-                  {copiedStudentPassword ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
               </div>
             </div>
 

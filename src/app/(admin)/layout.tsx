@@ -31,26 +31,44 @@ export default function AdminLayout({
 
     // Role to dashboard map
     const roleDashboardMap: Record<string, string> = {
-      ADMIN: "/courses",
-      TEACHER: "/teacher-dashboard",
-      QA_AUDITOR: "/qa-dashboard",
-      SCHEDULER: "/scheduler-dashboard",
-      WAREHOUSE_ADMIN: "/warehouse-dashboard",
-      FINANCE_ADMIN: "/finance-dashboard",
-      STUDENT: "/student-dashboard",
+      ADMIN: "/dashboard",
+      TEACHER: "/dashboard",
+      QA_AUDITOR: "/dashboard",
+      SCHEDULER: "/dashboard",
+      WAREHOUSE_ADMIN: "/dashboard",
+      FINANCE_ADMIN: "/dashboard",
+      STUDENT: "/dashboard",
+      PARENT: "/dashboard",
     };
 
     const targetDashboard = roleDashboardMap[user.role as string] || "/login";
 
     // Handle dashboard roots redirection
-    if (path === "/" || path === "/dashboard") {
+    if (path === "/" || (path === "/dashboard" && targetDashboard !== "/dashboard")) {
       router.push(targetDashboard);
       return;
     }
 
-    // Secure RBAC: restrict non-admins to their specific dashboard route
+    // Secure RBAC: restrict non-admins to their permitted routes
     if (user.role !== "ADMIN") {
-      if (path !== targetDashboard) {
+      const allowedPaths: Record<string, string[]> = {
+        TEACHER: ["/dashboard"],
+        QA_AUDITOR: ["/dashboard"],
+        SCHEDULER: ["/dashboard", "/scheduler", "/students", "/customers"],
+        WAREHOUSE_ADMIN: ["/dashboard"],
+        FINANCE_ADMIN: ["/dashboard"],
+        STUDENT: ["/dashboard"],
+        PARENT: ["/dashboard"],
+      };
+
+      const roleAllowed = allowedPaths[user.role as string] || ["/dashboard"];
+      const isPathAllowed = roleAllowed.some((allowed) => {
+        if (allowed === path) return true;
+        // Check dynamic prefixes (e.g. /customers/123)
+        return path.startsWith(allowed + "/");
+      });
+
+      if (!isPathAllowed) {
         router.push(targetDashboard);
         return;
       }

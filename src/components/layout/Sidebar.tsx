@@ -19,6 +19,7 @@ import {
   DollarSign,
   ShieldAlert,
   Contact,
+  Briefcase,
 } from "lucide-react";
 
 export function Sidebar() {
@@ -39,24 +40,34 @@ export function Sidebar() {
   const getNavItems = () => {
     switch (role) {
       case "TEACHER":
-        return [{ href: "/teacher-dashboard", label: "Teacher Hub", icon: GraduationCap }];
+        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
       case "QA_AUDITOR":
-        return [{ href: "/qa-dashboard", label: "QA Hub", icon: Shield }];
+        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
       case "SCHEDULER":
-        return [{ href: "/scheduler-dashboard", label: "Schedule Hub", icon: Calendar }];
+        return [
+          { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+          { href: "/scheduler", label: "Scheduler", icon: Calendar },
+          { href: "/students",  label: "Students",  icon: GraduationCap },
+          { href: "/customers", label: "Parents",   icon: Users },
+        ];
       case "WAREHOUSE_ADMIN":
-        return [{ href: "/warehouse-dashboard", label: "Warehouse Hub", icon: Package }];
+        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
       case "FINANCE_ADMIN":
-        return [{ href: "/finance-dashboard", label: "Finance Hub", icon: DollarSign }];
+        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
       case "STUDENT":
-        return [{ href: "/student-dashboard", label: "Student Hub", icon: GraduationCap }];
+        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
+      case "PARENT":
+        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
       default:
         // Admin gets the full list + Staff Management + User Roles + Leads CRM + Customers
         return [
+          { href: "/dashboard",     label: "Dashboard",     icon: LayoutDashboard },
           { href: "/courses",       label: "Programs",      icon: BookOpen },
           { href: "/sessions",      label: "Sessions",      icon: Clock },
+          { href: "/scheduler",     label: "Scheduler",     icon: Calendar },
           { href: "/students",      label: "Students",      icon: GraduationCap },
-          { href: "/customers",     label: "Customers",     icon: Users },
+          { href: "/mentors",       label: "Mentors",       icon: Briefcase },
+          { href: "/customers",     label: "Parents",       icon: Users },
           { href: "/staff",         label: "Staff Admin",   icon: UserCheck },
           { href: "/roles",         label: "User Roles",    icon: ShieldAlert },
           { href: "/leads",         label: "Leads CRM",     icon: Contact },

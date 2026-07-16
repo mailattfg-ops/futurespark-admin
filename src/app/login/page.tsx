@@ -38,17 +38,7 @@ export default function LoginPage() {
       if (resData.data.user.requiresFtlReset) {
         router.push("/ftl");
       } else {
-        const roleDashboardMap: Record<string, string> = {
-          ADMIN: "/courses",
-          TEACHER: "/teacher-dashboard",
-          QA_AUDITOR: "/qa-dashboard",
-          SCHEDULER: "/scheduler-dashboard",
-          WAREHOUSE_ADMIN: "/warehouse-dashboard",
-          FINANCE_ADMIN: "/finance-dashboard",
-          STUDENT: "/student-dashboard",
-        };
-        const dest = roleDashboardMap[resData.data.user.role as string] || "/courses";
-        router.push(dest);
+        router.push("/dashboard");
       }
     } catch (err: any) {
       setError(err.message || "Something went wrong. Please try again.");
