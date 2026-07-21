@@ -53,7 +53,12 @@ export function Sidebar() {
       case "TEACHER":
         return [
           {
+            title: "Overview",
             items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+          },
+          {
+            title: "Academics",
+            items: [{ href: "/teacher-dashboard", label: "My Teaching Schedule", icon: Calendar }],
           },
         ];
       case "QA_AUDITOR":

@@ -52,7 +52,7 @@ export default function AdminLayout({
     // Secure RBAC: restrict non-admins to their permitted routes
     if (user.role !== "ADMIN") {
       const allowedPaths: Record<string, string[]> = {
-        TEACHER: ["/dashboard"],
+        TEACHER: ["/dashboard", "/teacher-dashboard"],
         QA_AUDITOR: ["/dashboard"],
         SCHEDULER: ["/dashboard", "/scheduler", "/students", "/customers", "/mentors"],
         WAREHOUSE_ADMIN: ["/dashboard"],
