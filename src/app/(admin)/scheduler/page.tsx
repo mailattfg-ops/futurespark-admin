@@ -98,6 +98,7 @@ interface ScheduledClass {
   status: string; // SCHEDULED, COMPLETED, CANCELLED
   classType?: string;
   leadId?: string | null;
+  meetingLink?: string | null;
 }
 
 export default function SchedulerPage() {
@@ -130,6 +131,8 @@ export default function SchedulerPage() {
   const [classDateTime, setClassDateTime] = useState("");
   const [selectedMentorId, setSelectedMentorId] = useState("");
   const [classStatus, setClassStatus] = useState("SCHEDULED");
+  const [meetingLink, setMeetingLink] = useState("");
+  const [updateAllMeetingLinks, setUpdateAllMeetingLinks] = useState(true);
 
   // Week start state for Google Calendar-style Grid
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
@@ -393,6 +396,7 @@ export default function SchedulerPage() {
     setClassDateTime("");
     setSelectedMentorId("");
     setClassStatus("SCHEDULED");
+    setMeetingLink("");
     const today = new Date();
     const day = today.getDay();
     const diff = today.getDate() - day;
@@ -411,6 +415,7 @@ export default function SchedulerPage() {
     setClassDateTime("");
     setSelectedMentorId("");
     setClassStatus("SCHEDULED");
+    setMeetingLink("");
     const today = new Date();
     const day = today.getDay();
     const diff = today.getDate() - day;
@@ -433,6 +438,7 @@ export default function SchedulerPage() {
     setClassDateTime(formatted);
     setSelectedMentorId(c.mentorId);
     setClassStatus(c.status);
+    setMeetingLink(c.meetingLink || "");
     
     // Set week starting date based on the class date
     const day = localDate.getDay();
@@ -478,7 +484,7 @@ export default function SchedulerPage() {
         .map((s) => ({ id: s.id, order: s.order }));
 
       const payload = isEdit
-        ? { startTime: new Date(classDateTime).toISOString(), status: classStatus, mentorId: selectedMentorId }
+        ? { startTime: new Date(classDateTime).toISOString(), status: classStatus, mentorId: selectedMentorId, meetingLink: meetingLink.trim() || null, updateAll: updateAllMeetingLinks }
         : selectedClassType === "DEMO"
         ? {
             leadId: selectedLeadId,
@@ -486,6 +492,7 @@ export default function SchedulerPage() {
             programId: selectedProgramId,
             startTime: new Date(classDateTime).toISOString(),
             classType: "DEMO",
+            meetingLink: meetingLink.trim() || undefined,
           }
         : {
             studentId: selectedStudentId,
@@ -494,6 +501,7 @@ export default function SchedulerPage() {
             sessions: programSessions,
             startTime: new Date(classDateTime).toISOString(),
             classType: "REGULAR",
+            meetingLink: meetingLink.trim() || undefined,
           };
 
       const res = await fetch(url, {
@@ -821,6 +829,18 @@ export default function SchedulerPage() {
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
+                                {c.meetingLink && (
+                                  <a
+                                    href={c.meetingLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#00d4aa]/10 border border-[#00d4aa]/25 text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-all flex items-center gap-0.5 uppercase tracking-wide"
+                                    title={c.meetingLink}
+                                  >
+                                    🔗 Join
+                                  </a>
+                                )}
                                 <span
                                   className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
                                     c.status === "COMPLETED"
@@ -1510,6 +1530,42 @@ export default function SchedulerPage() {
                   )}
                 </div>
               )}
+
+              {/* Meeting Link (Google Meet / Zoom / WebRTC) */}
+              <div>
+                <label className="block text-[10px] text-white/45 font-bold uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
+                  🔗 Meeting Link (Optional)
+                  <span className="text-[9px] font-normal text-white/30 normal-case">(Google Meet, Zoom, Teams…)</span>
+                </label>
+                <input
+                  type="url"
+                  value={meetingLink}
+                  onChange={(e) => setMeetingLink(e.target.value)}
+                  placeholder="https://meet.google.com/abc-defg-hij"
+                  className="w-full bg-[#13161e] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white placeholder-white/20 focus:border-[#00d4aa] focus:outline-none transition-all"
+                />
+                {meetingLink && (
+                  <a
+                    href={meetingLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[9px] text-[#00d4aa] hover:underline mt-1 ml-0.5"
+                  >
+                    ✓ Preview link →
+                  </a>
+                )}
+                <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={updateAllMeetingLinks}
+                    onChange={(e) => setUpdateAllMeetingLinks(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded accent-[#00d4aa]"
+                  />
+                  <span className="text-[10px] text-[#00d4aa] font-semibold">
+                    Apply this Meeting Link to all sessions in this program
+                  </span>
+                </label>
+              </div>
 
               {/* Status Selector (Only for Rescheduling / Editing) */}
               {selectedClass && (

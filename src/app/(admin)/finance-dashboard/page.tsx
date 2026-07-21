@@ -181,27 +181,44 @@ export default function FinanceDashboard() {
       header: "Actions",
       cell: (row) => {
         const hasProgram = !!row.programId;
+        const hasStudents = row.students && row.students.length > 0;
+        const canApprove = hasProgram && hasStudents;
         const processing = actionId === row.id;
 
+        const getDisabledTitle = () => {
+          if (!hasProgram && !hasStudents) return "Parent must select a program and have at least one linked child before approval";
+          if (!hasProgram) return "Parent must select a program before payment can be approved";
+          if (!hasStudents) return "At least one linked child (student) is required before approval";
+          return undefined;
+        };
+
         return (
-          <div className="flex items-center gap-2">
-            {row.paymentApproved ? (
-              <button
-                onClick={() => handleToggleApproval(row.id, false)}
-                disabled={processing}
-                className="px-2.5 py-1 text-[10px] font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 rounded transition-all disabled:opacity-50 uppercase tracking-wider"
-              >
-                {processing ? "Revoking..." : "Revoke"}
-              </button>
-            ) : (
-              <button
-                onClick={() => handleToggleApproval(row.id, true)}
-                disabled={!hasProgram || processing}
-                title={!hasProgram ? "Parent must select a program before payment can be approved" : undefined}
-                className="px-2.5 py-1 text-[10px] font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 hover:border-emerald-500/40 rounded transition-all disabled:opacity-50 uppercase tracking-wider"
-              >
-                {processing ? "Approving..." : "Approve"}
-              </button>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              {row.paymentApproved ? (
+                <button
+                  onClick={() => handleToggleApproval(row.id, false)}
+                  disabled={processing}
+                  className="px-2.5 py-1 text-[10px] font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20 hover:border-red-500/40 rounded transition-all disabled:opacity-50 uppercase tracking-wider"
+                >
+                  {processing ? "Revoking..." : "Revoke"}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleToggleApproval(row.id, true)}
+                  disabled={!canApprove || processing}
+                  title={getDisabledTitle()}
+                  className="px-2.5 py-1 text-[10px] font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/20 hover:border-emerald-500/40 rounded transition-all disabled:opacity-50 uppercase tracking-wider"
+                >
+                  {processing ? "Approving..." : "Approve"}
+                </button>
+              )}
+            </div>
+            {!row.paymentApproved && !hasStudents && (
+              <span className="inline-flex items-center gap-1 text-[9px] text-amber-400/80 font-medium">
+                <AlertCircle className="w-2.5 h-2.5 shrink-0" />
+                Linked child required
+              </span>
             )}
           </div>
         );
