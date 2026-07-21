@@ -21,6 +21,7 @@ interface Student {
     id: string;
     email: string;
     programId?: string | null;
+    paymentApproved?: boolean;
   } | null;
 }
 
@@ -1303,7 +1304,7 @@ export default function SchedulerPage() {
                     >
                       <option value="">-- Choose Student --</option>
                       {students
-                        .filter((s) => s.parentAccount?.programId)
+                        .filter((s) => s.parentAccount?.programId && s.parentAccount?.paymentApproved)
                         .map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.firstName} {s.lastName} ({s.email})

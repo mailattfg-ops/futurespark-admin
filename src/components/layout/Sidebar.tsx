@@ -90,7 +90,11 @@ export function Sidebar() {
       case "FINANCE_ADMIN":
         return [
           {
-            items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+            title: "Overview",
+            items: [
+              { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+              { href: "/finance-dashboard", label: "Finance", icon: DollarSign },
+            ],
           },
         ];
       case "STUDENT":
@@ -139,7 +143,8 @@ export function Sidebar() {
           {
             title: "Operations",
             items: [
-              { href: "/scheduler",     label: "Scheduler",     icon: Calendar },
+              { href: "/scheduler",         label: "Scheduler",     icon: Calendar },
+              { href: "/finance-dashboard", label: "Finance",       icon: DollarSign },
             ],
           },
           {

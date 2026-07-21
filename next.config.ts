@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     const isProd = process.env.NODE_ENV === "production";
     const apiGatewayUrl = process.env.API_GATEWAY_URL || (isProd 
-      ? "https://futurespark-backend-one.vercel.app" 
+      ? "https://futurespark-backend-git-main-think-forge-globals-projects.vercel.app" 
       : "http://localhost:3000"
     );
 
