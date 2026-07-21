@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { 
-  Users, BookOpen, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Activity, 
-  GraduationCap, Calendar, Clock, Compass, ShieldCheck, CheckCircle2, Shield, 
-  AlertTriangle, Eye, Box, Package, ShoppingCart, Truck, CreditCard, Mail, 
-  Phone, UserCheck, Loader2, AlertCircle, Check
+import Link from "next/link";
+import {
+  Users, BookOpen, TrendingUp, DollarSign, ArrowUpRight, ArrowDownRight, Activity,
+  GraduationCap, Calendar, Clock, Compass, ShieldCheck, CheckCircle2, Shield,
+  AlertTriangle, Eye, Box, Package, ShoppingCart, Truck, CreditCard, Mail,
+  Phone, UserCheck, Loader2, AlertCircle, Check, Bell
 } from "lucide-react";
 
 // ── Types & Mock Data ────────────────────────────────────────────────────────
@@ -13,6 +14,9 @@ import {
 interface Program {
   id: string;
   title: string;
+  description?: string | null;
+  level?: string;
+  levelColor?: string;
 }
 
 interface ParentProfile {
@@ -37,6 +41,7 @@ interface ParentAccount {
   email: string;
   profiles: ParentProfile[];
   students: Student[];
+  programId: string | null;
 }
 
 const kpis = [
@@ -98,54 +103,104 @@ export default function DashboardPage() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [qualifiedIds, setQualifiedIds] = useState<string[]>([]);
   const [parentData, setParentData] = useState<ParentAccount | null>(null);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [schedulesLoading, setSchedulesLoading] = useState(false);
+  const [schedulesError, setSchedulesError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const userStr = localStorage.getItem("user");
-      const tokensStr = localStorage.getItem("tokens");
-      if (userStr && tokensStr) {
+    const fetchDashboardData = async () => {
+      try {
+        const userStr = localStorage.getItem("user");
+        const tokensStr = localStorage.getItem("tokens");
+        if (!userStr || !tokensStr) {
+          setLoading(false);
+          return;
+        }
+
         const user = JSON.parse(userStr);
         const accessToken = JSON.parse(tokensStr).accessToken;
         const currentRole = user.role || "ADMIN";
-        
+
         setRole(currentRole);
         setUserId(user.id);
         setUserName([user.firstName, user.lastName].filter(Boolean).join(" ") || "User");
         setUserEmail(user.email);
         setQualifiedIds(user.qualifiedPrograms || []);
 
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        };
+
+        const fetchJson = async (url: string) => {
+          const res = await fetch(url, { headers });
+          if (!res.ok) {
+            let errMsg = `Request to ${url} failed with status ${res.status}`;
+            try {
+              const errData = await res.json();
+              if (errData && errData.message) errMsg = errData.message;
+            } catch { }
+            throw new Error(errMsg);
+          }
+          const data = await res.json();
+          if (data && data.success === false) {
+            throw new Error(data.message || `Request to ${url} returned unsuccessful status`);
+          }
+          return data;
+        };
+
         if (currentRole === "TEACHER") {
           // Fetch qualified subjects
-          fetch("/api/courses", {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.success) setPrograms(data.data);
-            })
-            .catch(() => {});
+          const data = await fetchJson("/api/courses");
+          setPrograms(data.data || []);
+        } else if (currentRole === "STUDENT") {
+          // Fetch student schedules, programs, and sessions
+          setSchedulesLoading(true);
+          const [dataScheds, dataProgs, dataSess] = await Promise.all([
+            fetchJson(`/api/schedules?studentId=${user.id}`),
+            fetchJson("/api/courses"),
+            fetchJson("/api/courses/sessions"),
+          ]);
+
+          setSchedules(dataScheds.data || []);
+          setPrograms(dataProgs.data || []);
+          setSessions(dataSess.data || []);
         } else if (currentRole === "PARENT") {
           // Fetch parent data
-          fetch(`/api/users/customers/${user.id}`, {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${accessToken}`,
-            },
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.success) setParentData(data.data);
-              else setError(data.message || "Failed to load parent data.");
-            })
-            .catch((err) => setError(err.message))
-            .finally(() => setLoading(false));
-          return; // Skip standard loading state
+          const dataParent = await fetchJson(`/api/users/customers/${user.id}`);
+          setParentData(dataParent.data);
+
+          // Now fetch child schedules, programs, and sessions
+          setSchedulesLoading(true);
+          const studentsList = dataParent.data.students || [];
+          const [dataProgs, dataSess, ...dataProScheds] = await Promise.all([
+            fetchJson("/api/courses"),
+            fetchJson("/api/courses/sessions"),
+            ...studentsList.map((s: any) => fetchJson(`/api/schedules?studentId=${s.id}`)),
+          ]);
+
+          setPrograms(dataProgs.data || []);
+          setSessions(dataSess.data || []);
+
+          const childSchedules: any[] = [];
+          for (const dataSched of dataProScheds) {
+            childSchedules.push(...(dataSched.data || []));
+          }
+          setSchedules(childSchedules);
         }
+      } catch (err: any) {
+        setError(err.message);
+        setSchedulesError(err.message);
+      } finally {
+        setLoading(false);
+        setSchedulesLoading(false);
       }
-    } catch {}
-    setLoading(false);
+    };
+
+    fetchDashboardData();
   }, []);
 
   if (loading) {
@@ -403,8 +458,19 @@ export default function DashboardPage() {
 
   // ── 6. STUDENT Dashboard ───────────────────────────────────────────────────
   if (role === "STUDENT") {
+    const activeSchedulesCount = schedules.filter((c) => c.status === "SCHEDULED").length;
+    const uniqueProgramIds = Array.from(new Set(schedules.map((c) => c.programId)));
+
+    const now = new Date();
+    const nextClass = [...schedules]
+      .filter((c) => c.status === "SCHEDULED" && new Date(c.startTime) >= now)
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
+
+    const nextClassProgram = nextClass ? programs.find((p) => p.id === nextClass.programId) : null;
+    const nextClassSession = nextClass ? sessions.find((s) => s.id === nextClass.sessionId) : null;
+
     return (
-      <div className="p-8 w-full">
+      <div className="p-8 w-full max-w-7xl mx-auto">
         <div className="relative overflow-hidden bg-gradient-to-r from-blue-500/10 to-teal-500/10 border border-white/[0.08] rounded-3xl p-8 mb-8 shadow-2xl">
           <div className="relative z-10">
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase tracking-wider mb-3 border border-blue-500/20">
@@ -415,13 +481,56 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Next Class Announcement Banner */}
+        {nextClass && (
+          <div className="mb-8 relative overflow-hidden rounded-2xl border border-[#7c5cfc]/30 bg-gradient-to-r from-[#7c5cfc]/15 via-indigo-955/20 to-[#7c5cfc]/5 p-6 shadow-2xl">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[#7c5cfc]/10 rounded-full blur-3xl -z-10" />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-[#7c5cfc]/20 border border-[#7c5cfc]/30 flex items-center justify-center shrink-0">
+                  <Bell className="w-6 h-6 text-[#a78bfa] animate-pulse" />
+                </div>
+                <div>
+                  <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#7c5cfc]/20 text-[#a78bfa] border border-[#7c5cfc]/30 mb-2">
+                    Next Class Reminder
+                  </span>
+                  <h3 className="text-lg font-bold text-white leading-tight">
+                    {nextClassProgram ? nextClassProgram.title : "Upcoming Session"}
+                  </h3>
+                  {nextClassSession && (
+                    <p className="text-sm text-white/60 mt-1">
+                      {nextClassSession.title.toLowerCase().startsWith("session")
+                        ? nextClassSession.title
+                        : `Session ${nextClassSession.order}: ${nextClassSession.title}`}
+                    </p>
+                  )}
+                  <p className="text-xs text-white/35 mt-2 flex items-center gap-1">
+                    Mentor: <span className="font-semibold text-[#00d4aa]">{nextClass.mentor.firstName} {nextClass.mentor.lastName}</span> ({nextClass.mentor.email})
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4 shrink-0 bg-[#161b27]/80 px-5 py-3 rounded-xl border border-white/[0.08] shadow-md">
+                <div className="text-right">
+                  <div className="text-lg font-bold text-[#a78bfa]">
+                    {new Date(nextClass.startTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                  <div className="text-xs text-white/40 mt-0.5">
+                    {new Date(nextClass.startTime).toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-white/50">My Enrolled Courses</span>
               <BookOpen className="w-4 h-4 text-blue-400" />
             </div>
-            <p className="text-2xl font-bold text-white">0</p>
+            <p className="text-2xl font-bold text-white">{uniqueProgramIds.length}</p>
             <p className="text-[10px] text-white/35">Explore programs to enroll and start learning.</p>
           </div>
           <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-3">
@@ -429,7 +538,9 @@ export default function DashboardPage() {
               <span className="text-xs font-semibold text-white/50">Upcoming Classes</span>
               <Calendar className="w-4 h-4 text-purple-400" />
             </div>
-            <p className="text-2xl font-bold text-white">None Scheduled</p>
+            <p className="text-2xl font-bold text-white">
+              {activeSchedulesCount > 0 ? activeSchedulesCount : "None"}
+            </p>
             <p className="text-[10px] text-white/35">Check back after enrolling in a program.</p>
           </div>
           <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-3">
@@ -460,6 +571,18 @@ export default function DashboardPage() {
 
     const primaryProfile = parentData.profiles[0];
     const secondaryProfile = parentData.profiles[1];
+    const greetingName = primaryProfile
+      ? `${primaryProfile.firstName} ${primaryProfile.lastName}`
+      : "Parent";
+
+    const now = new Date();
+    const nextClass = [...schedules]
+      .filter((c) => c.status === "SCHEDULED" && new Date(c.startTime) >= now)
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
+
+    const nextClassProgram = nextClass ? programs.find((p) => p.id === nextClass.programId) : null;
+    const nextClassSession = nextClass ? sessions.find((s) => s.id === nextClass.sessionId) : null;
+    const nextClassStudent = nextClass ? parentData.students.find((s) => s.id === nextClass.studentId) : null;
 
     return (
       <div className="p-8 w-full max-w-7xl mx-auto">
@@ -474,6 +597,56 @@ export default function DashboardPage() {
             <p className="text-white/45 text-sm mt-1">Master Account: {parentData.email}</p>
           </div>
         </div>
+
+        {/* Next Class Announcement Banner */}
+        {nextClass && (
+          <div className="mb-8 relative overflow-hidden rounded-2xl border border-[#7c5cfc]/30 bg-gradient-to-r from-[#7c5cfc]/15 via-indigo-955/20 to-[#7c5cfc]/5 p-6 shadow-2xl">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[#7c5cfc]/10 rounded-full blur-3xl -z-10" />
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-[#7c5cfc]/20 border border-[#7c5cfc]/30 flex items-center justify-center shrink-0">
+                  <Bell className="w-6 h-6 text-[#a78bfa] animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#7c5cfc]/20 text-[#a78bfa] border border-[#7c5cfc]/30">
+                      Next Class Reminder
+                    </span>
+                    {nextClassStudent && (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-white/[0.04] text-white/70 border border-white/[0.08]">
+                        Child: {nextClassStudent.firstName}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-white leading-tight">
+                    {nextClassProgram ? nextClassProgram.title : "Upcoming Session"}
+                  </h3>
+                  {nextClassSession && (
+                    <p className="text-sm text-white/60 mt-1">
+                      {nextClassSession.title.toLowerCase().startsWith("session")
+                        ? nextClassSession.title
+                        : `Session ${nextClassSession.order}: ${nextClassSession.title}`}
+                    </p>
+                  )}
+                  <p className="text-xs text-white/35 mt-2 flex items-center gap-1">
+                    Mentor: <span className="font-semibold text-[#00d4aa]">{nextClass.mentor.firstName} {nextClass.mentor.lastName}</span> ({nextClass.mentor.email})
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-4 shrink-0 bg-[#161b27]/80 px-5 py-3 rounded-xl border border-white/[0.08] shadow-md">
+                <div className="text-right">
+                  <div className="text-lg font-bold text-[#a78bfa]">
+                    {new Date(nextClass.startTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                  <div className="text-xs text-white/45 mt-0.5">
+                    {new Date(nextClass.startTime).toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
@@ -547,6 +720,58 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+
+            {/* Active Program Card */}
+            {(() => {
+              const activeProgram = parentData.programId
+                ? programs.find(p => p.id === parentData.programId)
+                : null;
+              
+              if (activeProgram) {
+                return (
+                  <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-6 shadow-xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-white/[0.05] pb-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-[#a78bfa] bg-[#7c5cfc]/15 border border-[#7c5cfc]/20 px-2 py-0.5 rounded-full uppercase tracking-wider mb-1 inline-block">
+                          {activeProgram.level || "Subscribed"}
+                        </span>
+                        <h3 className="text-sm font-semibold text-white mt-1">{activeProgram.title}</h3>
+                      </div>
+                      <BookOpen className="w-5 h-5 text-[#a78bfa]" />
+                    </div>
+                    {activeProgram.description && (
+                      <p className="text-white/45 text-xs line-clamp-3 leading-relaxed">
+                        {activeProgram.description}
+                      </p>
+                    )}
+                    <Link
+                      href={`/courses/${activeProgram.id}`}
+                      className="w-full flex items-center justify-center gap-1.5 px-4 py-2 border border-white/[0.12] bg-white/[0.02] hover:bg-white/[0.05] text-white/70 hover:text-white text-xs font-semibold rounded-xl transition-all"
+                    >
+                      EXPLORE CURRICULUM
+                    </Link>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 shadow-xl space-y-4 text-center">
+                  <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto animate-pulse" />
+                  <div>
+                    <h3 className="text-sm font-bold text-amber-200">No Program Subscription</h3>
+                    <p className="text-[11px] text-white/40 mt-1 leading-relaxed">
+                      Subscribe to an academics course path to sync your student's learning session schedule.
+                    </p>
+                  </div>
+                  <Link
+                    href="/courses"
+                    className="w-full flex items-center justify-center gap-1.5 px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-xl text-xs font-semibold transition-all"
+                  >
+                    BROWSE PROGRAMS
+                  </Link>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -642,8 +867,8 @@ export default function DashboardPage() {
             {recentActivity.map((item, i) => (
               <div key={i} className="flex items-start gap-3">
                 <div className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${item.color === "teal" ? "bg-[#00d4aa]" :
-                    item.color === "purple" ? "bg-[#7c5cfc]" :
-                      "bg-amber-400"
+                  item.color === "purple" ? "bg-[#7c5cfc]" :
+                    "bg-amber-400"
                   }`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-white/70 font-medium">{item.action}</p>

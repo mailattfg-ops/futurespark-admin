@@ -24,10 +24,14 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const resData = await response.json();
+      const contentType = response.headers.get("content-type");
+      let resData: any = null;
+      if (contentType && contentType.includes("application/json")) {
+        resData = await response.json();
+      }
 
-      if (!response.ok || !resData.success) {
-        throw new Error(resData.message || "Invalid credentials");
+      if (!response.ok || !resData?.success) {
+        throw new Error(resData?.message || `Server error (${response.status})`);
       }
 
       // Save user session in localStorage

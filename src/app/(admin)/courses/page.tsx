@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Users, TrendingUp, Plus, Loader2, AlertCircle } from "lucide-react";
+import { Toast } from "@/components/ui/toast";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,19 @@ function LevelBadge({ level }: { level: string }) {
   );
 }
 
-function CourseCard({ course }: { course: Program }) {
+function CourseCard({
+  course,
+  role,
+  parentAccount,
+  subscribingId,
+  onSubscribe,
+}: {
+  course: Program;
+  role: string | null;
+  parentAccount: any;
+  subscribingId: string | null;
+  onSubscribe: (courseId: string) => void;
+}) {
   // Count total students mapping from static offsets based on ID for realism
   const studentOffset = course.title.charCodeAt(0) * 8 + 100;
 
@@ -101,19 +114,36 @@ function CourseCard({ course }: { course: Program }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-auto pt-2 border-t border-white/[0.05]">
+        <div className="flex flex-wrap items-center justify-between mt-auto pt-2 border-t border-white/[0.05] gap-2">
           <div className="flex items-center gap-1.5 text-white/35">
             <Users className="w-3.5 h-3.5" />
             <span className="text-[11px]">{studentOffset.toLocaleString()} students</span>
           </div>
-          <Link
-            href={`/courses/${course.id}`}
-            className="px-3 py-1 rounded border border-white/[0.15] text-white/60
-              text-[11px] font-medium hover:border-[#7c5cfc]/60 hover:text-[#a78bfa]
-              hover:bg-[#7c5cfc]/10 transition-all duration-200"
-          >
-            MANAGE
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            {role === "PARENT" && parentAccount && (
+              parentAccount.programId === course.id ? (
+                <span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded text-[10px] font-bold uppercase tracking-wider">
+                  SUBSCRIBED
+                </span>
+              ) : (
+                <button
+                  onClick={() => onSubscribe(course.id)}
+                  disabled={subscribingId !== null}
+                  className="px-2 py-0.5 bg-[#7c5cfc]/10 hover:bg-[#7c5cfc]/20 text-[#a78bfa] hover:text-white border border-[#7c5cfc]/20 hover:border-[#7c5cfc]/40 rounded text-[10px] font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+                >
+                  {subscribingId === course.id ? "Subscribing..." : "SUBSCRIBE"}
+                </button>
+              )
+            )}
+            <Link
+              href={`/courses/${course.id}`}
+              className="px-3 py-1 rounded border border-white/[0.15] text-white/60
+                text-[11px] font-medium hover:border-[#7c5cfc]/60 hover:text-[#a78bfa]
+                hover:bg-[#7c5cfc]/10 transition-all duration-200"
+            >
+              EXPLORE
+            </Link>
+          </div>
         </div>
       </div>
     </div>
@@ -126,7 +156,57 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [parentAccount, setParentAccount] = useState<any>(null);
+  const [subscribingId, setSubscribingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setRole(u.role);
+      if (u.role === "PARENT") {
+        const tokensStr = localStorage.getItem("tokens");
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (tokensStr) headers["Authorization"] = `Bearer ${JSON.parse(tokensStr).accessToken}`;
+        fetch(`/api/users/customers/${u.id}`, { headers })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              setParentAccount(data.data);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, []);
+
+  const handleSubscribe = async (courseId: string) => {
+    if (!parentAccount) return;
+    setSubscribingId(courseId);
+    try {
+      const tokensStr = localStorage.getItem("tokens");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (tokensStr) headers["Authorization"] = `Bearer ${JSON.parse(tokensStr).accessToken}`;
+      
+      const res = await fetch(`/api/users/customers/${parentAccount.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ programId: courseId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || "Failed to subscribe");
+      
+      setParentAccount((prev: any) => prev ? { ...prev, programId: courseId } : null);
+      setToast({ message: "Program subscription updated successfully.", type: "success" });
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to update subscription.", type: "error" });
+    } finally {
+      setSubscribingId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -178,16 +258,18 @@ export default function CoursesPage() {
             Control every aspect of the learning journey from a single point of truth.
           </p>
         </div>
-        <Link
-          href="/courses/new"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-            border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.07]
-            text-white/70 hover:text-white text-sm font-medium
-            transition-all duration-200 group whitespace-nowrap"
-        >
-          ADD NEW PROGRAM
-          <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-        </Link>
+        {role !== "PARENT" && (
+          <Link
+            href="/courses/new"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl
+              border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.07]
+              text-white/70 hover:text-white text-sm font-medium
+              transition-all duration-200 group whitespace-nowrap"
+          >
+            ADD NEW PROGRAM
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        )}
       </div>
 
       {/* Stats Row */}
@@ -242,29 +324,46 @@ export default function CoursesPage() {
           {/* Course Grid */}
           <div className="grid grid-cols-3 gap-4 mb-8">
             {courses.map(course => (
-              <CourseCard key={course.id} course={course} />
+              <CourseCard
+                key={course.id}
+                course={course}
+                role={role}
+                parentAccount={parentAccount}
+                subscribingId={subscribingId}
+                onSubscribe={handleSubscribe}
+              />
             ))}
           </div>
 
           {/* Expand Catalog CTA */}
-          <Link
-            href="/courses/new"
-            className="flex flex-col items-center justify-center py-12
-              border border-dashed border-white/[0.08] rounded-2xl
-              hover:border-white/[0.15] hover:bg-white/[0.02] transition-all duration-300 group cursor-pointer"
-          >
-            <div className="w-10 h-10 rounded-full border border-white/[0.12] flex items-center justify-center
-              mb-4 group-hover:border-[#7c5cfc]/50 group-hover:bg-[#7c5cfc]/10 transition-all">
-              <Plus className="w-5 h-5 text-white/30 group-hover:text-[#7c5cfc] transition-colors" />
-            </div>
-            <p className="text-white/50 font-medium mb-1 group-hover:text-white/70 transition-colors">
-              Expand the Catalog
-            </p>
-            <p className="text-white/25 text-sm text-center max-w-xs group-hover:text-white/40 transition-colors">
-              Initiate a new course vertical or template to reach more developers.
-            </p>
-          </Link>
+          {role !== "PARENT" && (
+            <Link
+              href="/courses/new"
+              className="flex flex-col items-center justify-center py-12
+                border border-dashed border-white/[0.08] rounded-2xl
+                hover:border-white/[0.15] hover:bg-white/[0.02] transition-all duration-300 group cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-full border border-white/[0.12] flex items-center justify-center
+                mb-4 group-hover:border-[#7c5cfc]/50 group-hover:bg-[#7c5cfc]/10 transition-all">
+                <Plus className="w-5 h-5 text-white/30 group-hover:text-[#7c5cfc] transition-colors" />
+              </div>
+              <p className="text-white/50 font-medium mb-1 group-hover:text-white/70 transition-colors">
+                Expand the Catalog
+              </p>
+              <p className="text-white/25 text-sm text-center max-w-xs group-hover:text-white/40 transition-colors">
+                Initiate a new course vertical or template to reach more developers.
+              </p>
+            </Link>
+          )}
         </>
+      )}
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

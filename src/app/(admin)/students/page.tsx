@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Toast } from "@/components/ui/toast";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   Search,
   Trash2,
@@ -56,6 +58,19 @@ export default function StudentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [role, setRole] = useState<string | null>(null);
 
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
   const getHeaders = () => {
     const tokensStr = localStorage.getItem("tokens");
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -108,18 +123,26 @@ export default function StudentsPage() {
   }, []);
 
   const handleDeleteStudent = async (id: string) => {
-    if (!confirm("Are you sure you want to permanently delete this student account?")) return;
-    try {
-      const res = await fetch(`/api/users/customers/students/${id}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Failed to delete student");
-      fetchData();
-    } catch (err: any) {
-      setError(err.message);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Student Account",
+      message: "Are you sure you want to permanently delete this student account?",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const res = await fetch(`/api/users/customers/students/${id}`, {
+            method: "DELETE",
+            headers: getHeaders(),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || "Failed to delete student");
+          fetchData();
+          setToast({ message: "Student account deleted successfully.", type: "success" });
+        } catch (err: any) {
+          setToast({ message: err.message || "Failed to delete student account.", type: "error" });
+        }
+      },
+    });
   };
 
   const filteredStudents = students.filter((s) => {
@@ -318,6 +341,23 @@ export default function StudentsPage() {
             <p className="text-white/50 font-medium text-sm">No students registered in the database.</p>
           </div>
         }
+      />
+      {/* Reusable Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Reusable Confirm Dialog Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

@@ -73,10 +73,14 @@ export default function FtlPage() {
         }),
       });
 
-      const resData = await response.json();
+      const contentType = response.headers.get("content-type");
+      let resData: any = null;
+      if (contentType && contentType.includes("application/json")) {
+        resData = await response.json();
+      }
 
-      if (!response.ok || !resData.success) {
-        throw new Error(resData.message || "Failed to complete setup.");
+      if (!response.ok || !resData?.success) {
+        throw new Error(resData?.message || `Server error (${response.status})`);
       }
 
       setSuccess(true);

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Toast } from "@/components/ui/toast";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   GraduationCap,
   Plus,
@@ -54,6 +56,7 @@ interface ScheduleSlot {
   weekday: number;
   startTime: string;
   endTime: string;
+  scheduleType?: string;
 }
 
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -89,7 +92,8 @@ function hasConflict(slots: ScheduleSlot[], weekday: number, startTime: string):
     const eStart = minutesFrom(s.startTime);
     const eEnd = minutesFrom(s.endTime);
     if (newStart < eEnd && newEnd > eStart) {
-      return `Conflicts with existing slot ${s.startTime}–${s.endTime}`;
+      const typeStr = s.scheduleType?.toLowerCase() || "regular";
+      return `Conflicts with existing ${typeStr} slot ${s.startTime}–${s.endTime}`;
     }
   }
   return null;
@@ -136,11 +140,25 @@ export default function MentorsPage() {
   const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
 
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
   // per-day add-slot state
   const [expandedDays, setExpandedDays] = useState<number[]>([]);
   const [slotInputs, setSlotInputs] = useState<Record<number, string>>({});
   const [slotErrors, setSlotErrors] = useState<Record<number, string>>({});
   const [slotAdding, setSlotAdding] = useState<Record<number, boolean>>({});
+  const [slotTypes, setSlotTypes] = useState<Record<number, "REGULAR" | "DEMO">>({});
 
   // ── Copy-to-days state ──────────────────────────────────────────────────
   const [copyFromDay, setCopyFromDay] = useState<number | null>(null);
@@ -249,24 +267,34 @@ export default function MentorsPage() {
       }
       setLoading(true);
       fetchData();
+      setToast({ message: isEdit ? "Mentor details updated successfully." : "Mentor account created successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to save mentor details.", type: "error" });
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDeleteMentor = async (id: string) => {
-    if (!confirm("Delete this mentor? This action is permanent.")) return;
-    try {
-      const res = await fetch(`/api/users/${id}`, { method: "DELETE", headers: getHeaders() });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Failed to delete");
-      setLoading(true);
-      fetchData();
-    } catch (err: any) {
-      setError(err.message);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Mentor",
+      message: "Delete this mentor? This action is permanent.",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const res = await fetch(`/api/users/${id}`, { method: "DELETE", headers: getHeaders() });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || "Failed to delete");
+          setLoading(true);
+          fetchData();
+          setToast({ message: "Mentor deleted successfully.", type: "success" });
+        } catch (err: any) {
+          setToast({ message: err.message || "Failed to delete mentor.", type: "error" });
+        }
+      },
+    });
   };
 
   // ── Password reset ──────────────────────────────────────────────────────
@@ -289,8 +317,10 @@ export default function MentorsPage() {
       setCredentialsData({ email: resetMentor.email, password: newTempPassword });
       setShowCredentialsModal(true);
       fetchData();
+      setToast({ message: "Mentor account password reset successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to reset password.", type: "error" });
     } finally {
       setActionLoading(false);
     }
@@ -311,6 +341,7 @@ export default function MentorsPage() {
     setScheduleSlots([]);
     setExpandedDays([]);
     setSlotInputs({});
+    setSlotTypes({});
     setSlotErrors({});
     setShowScheduleDrawer(true);
     setScheduleLoading(true);
@@ -343,13 +374,15 @@ export default function MentorsPage() {
       return;
     }
 
+    const scheduleType = slotTypes[day] || "REGULAR";
+
     setSlotAdding((prev) => ({ ...prev, [day]: true }));
     setSlotErrors((prev) => ({ ...prev, [day]: "" }));
     try {
       const res = await fetch(`/api/users/mentors/${scheduleMentor.id}/schedules`, {
         method: "POST",
         headers: getHeaders(),
-        body: JSON.stringify({ weekday: day, startTime }),
+        body: JSON.stringify({ weekday: day, startTime, scheduleType }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -362,8 +395,10 @@ export default function MentorsPage() {
         )
       );
       setSlotInputs((prev) => ({ ...prev, [day]: "" }));
+      setToast({ message: "Availability slot added successfully.", type: "success" });
     } catch {
       setSlotErrors((prev) => ({ ...prev, [day]: "Network error — please try again" }));
+      setToast({ message: "Failed to add availability slot due to network error.", type: "error" });
     } finally {
       setSlotAdding((prev) => ({ ...prev, [day]: false }));
     }
@@ -377,8 +412,10 @@ export default function MentorsPage() {
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || "Failed to delete");
       setScheduleSlots((prev) => prev.filter((s) => s.id !== slotId));
+      setToast({ message: "Availability slot deleted successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to delete availability slot.", type: "error" });
     }
   };
 
@@ -430,7 +467,7 @@ export default function MentorsPage() {
           const res = await fetch(`/api/users/mentors/${scheduleMentor.id}/schedules`, {
             method: "POST",
             headers: getHeaders(),
-            body: JSON.stringify({ weekday: targetDay, startTime: src.startTime }),
+            body: JSON.stringify({ weekday: targetDay, startTime: src.startTime, scheduleType: src.scheduleType || "REGULAR" }),
           });
           const data = await res.json();
           if (res.ok && data.success) {
@@ -473,6 +510,16 @@ export default function MentorsPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────
 
+  // Scheduler role gets read-only access — no add / edit / delete
+  const isReadOnly = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem("user") || "{}");
+      return u.role === "SCHEDULER";
+    } catch {
+      return false;
+    }
+  })();
+
   return (
     <div className="p-8 w-full">
       {/* Page Header */}
@@ -486,14 +533,16 @@ export default function MentorsPage() {
             Manage mentor accounts, qualifications, and weekly availability schedules.
           </p>
         </div>
-        <button
-          onClick={openProvisionModal}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-sm font-semibold transition-all shadow-lg shadow-[#7c5cfc]/20"
-        >
-          <Plus className="w-4 h-4" />
-          ADD MENTOR
-        </button>
+        {!isReadOnly && (
+          <button
+            onClick={openProvisionModal}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl
+              bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-sm font-semibold transition-all shadow-lg shadow-[#7c5cfc]/20"
+          >
+            <Plus className="w-4 h-4" />
+            ADD MENTOR
+          </button>
+        )}
       </div>
 
       {error && (
@@ -615,34 +664,39 @@ export default function MentorsPage() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-1.5">
+                      {/* Schedule button always visible — scheduler needs to see availability */}
                       <button
                         onClick={() => openScheduleDrawer(mentor)}
                         className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/35 hover:text-[#7c5cfc] hover:bg-[#7c5cfc]/10 hover:border-[#7c5cfc]/20 transition-all"
-                        title="Manage schedule"
+                        title="View schedule"
                       >
                         <Calendar className="w-3.5 h-3.5" />
                       </button>
-                      <button
-                        onClick={() => openEditModal(mentor)}
-                        className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/35 hover:text-white transition-all"
-                        title="Edit mentor"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => { setResetMentor(mentor); setNewTempPassword(""); setShowResetModal(true); }}
-                        className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/35 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
-                        title="Reset password"
-                      >
-                        <Key className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteMentor(mentor.id)}
-                        className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                        title="Delete mentor"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {!isReadOnly && (
+                        <>
+                          <button
+                            onClick={() => openEditModal(mentor)}
+                            className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/35 hover:text-white transition-all"
+                            title="Edit mentor"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => { setResetMentor(mentor); setNewTempPassword(""); setShowResetModal(true); }}
+                            className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/35 hover:text-amber-400 hover:bg-amber-500/10 transition-all"
+                            title="Reset password"
+                          >
+                            <Key className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMentor(mentor.id)}
+                            className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                            title="Delete mentor"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -931,6 +985,8 @@ export default function MentorsPage() {
                   {/* 7 Day cards */}
                   {DAYS.map((dayName, dayIdx) => {
                     const daySlots = scheduleSlots.filter((s) => s.weekday === dayIdx);
+                    const regularSlots = daySlots.filter((s) => (s.scheduleType || "REGULAR") === "REGULAR");
+                    const demoSlots = daySlots.filter((s) => s.scheduleType === "DEMO");
                     const isExpanded = expandedDays.includes(dayIdx);
                     const colorClass = DAY_COLORS[dayIdx];
                     const startVal = slotInputs[dayIdx] || "";
@@ -954,14 +1010,14 @@ export default function MentorsPage() {
                               <p className="text-[10px] text-white/35">
                                 {daySlots.length === 0
                                   ? "No slots configured"
-                                  : `${daySlots.length} slot${daySlots.length > 1 ? "s" : ""} active`}
+                                  : `${regularSlots.length} Regular, ${demoSlots.length} Demo`}
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
                             {daySlots.length > 0 && (
                               <span className="text-[10px] bg-black/20 px-2 py-0.5 rounded-full text-white/50 hidden sm:block">
-                                {daySlots.map((s) => s.startTime).join(", ")}
+                                {daySlots.map((s) => `${s.startTime}(${(s.scheduleType || "REGULAR")[0]})`).join(", ")}
                               </span>
                             )}
                             {isExpanded
@@ -973,31 +1029,72 @@ export default function MentorsPage() {
 
                         {/* Expanded body */}
                         {isExpanded && (
-                          <div className="px-4 pb-4 space-y-3 border-t border-white/[0.08] pt-3">
-                            {/* Existing slots list */}
-                            {daySlots.length > 0 && (
-                              <div className="space-y-2">
-                                {daySlots.map((slot) => (
-                                  <div key={slot.id}
-                                    className="flex items-center justify-between bg-[#13161e] border border-white/[0.07] rounded-lg px-3 py-2">
-                                    <div className="flex items-center gap-2">
-                                      <Clock className="w-3.5 h-3.5 text-[#7c5cfc]" />
-                                      <span className="text-xs font-semibold text-white tabular-nums">{slot.startTime}</span>
-                                      <span className="text-white/30 text-xs">→</span>
-                                      <span className="text-xs font-semibold text-[#00d4aa] tabular-nums">{slot.endTime}</span>
-                                      <span className="text-[10px] text-white/20 ml-1">(90 min)</span>
-                                    </div>
-                                    <button
-                                      onClick={() => handleDeleteSlot(slot.id)}
-                                      className="p-1 rounded text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                                      title="Remove slot"
-                                    >
-                                      <Trash className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                ))}
+                          <div className="px-4 pb-4 space-y-4 border-t border-white/[0.08] pt-3">
+                            {/* Regular Slots Section */}
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Regular Slots</h4>
                               </div>
-                            )}
+                              {regularSlots.length === 0 ? (
+                                <p className="text-[10px] text-white/25 italic pl-3 mb-2">No regular slots</p>
+                              ) : (
+                                <div className="space-y-2 mb-3">
+                                  {regularSlots.map((slot) => (
+                                    <div key={slot.id}
+                                      className="flex items-center justify-between bg-[#13161e] border border-blue-500/10 rounded-lg px-3 py-2">
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="w-3.5 h-3.5 text-blue-400" />
+                                        <span className="text-xs font-semibold text-white tabular-nums">{slot.startTime}</span>
+                                        <span className="text-white/30 text-xs">→</span>
+                                        <span className="text-xs font-semibold text-[#00d4aa] tabular-nums">{slot.endTime}</span>
+                                        <span className="text-[10px] text-white/20 ml-1">(90 min)</span>
+                                      </div>
+                                      <button
+                                        onClick={() => handleDeleteSlot(slot.id)}
+                                        className="p-1 rounded text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                        title="Remove slot"
+                                      >
+                                        <Trash className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Demo Slots Section */}
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Demo Slots</h4>
+                              </div>
+                              {demoSlots.length === 0 ? (
+                                <p className="text-[10px] text-white/25 italic pl-3 mb-2">No demo slots</p>
+                              ) : (
+                                <div className="space-y-2 mb-3">
+                                  {demoSlots.map((slot) => (
+                                    <div key={slot.id}
+                                      className="flex items-center justify-between bg-[#13161e] border border-amber-500/10 rounded-lg px-3 py-2">
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                        <span className="text-xs font-semibold text-white tabular-nums">{slot.startTime}</span>
+                                        <span className="text-white/30 text-xs">→</span>
+                                        <span className="text-xs font-semibold text-[#00d4aa] tabular-nums">{slot.endTime}</span>
+                                        <span className="text-[10px] text-white/20 ml-1">(90 min)</span>
+                                      </div>
+                                      <button
+                                        onClick={() => handleDeleteSlot(slot.id)}
+                                        className="p-1 rounded text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                        title="Remove slot"
+                                      >
+                                        <Trash className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
 
                             {/* Copy to other days */}
                             {daySlots.length > 0 && (
@@ -1106,6 +1203,33 @@ export default function MentorsPage() {
                               <p className="text-[10px] text-white/40 uppercase tracking-wider font-semibold mb-2.5">
                                 Add Time Slot
                               </p>
+                              <div className="mb-3 flex items-center gap-4">
+                                <label className="text-[10px] text-white/40 font-medium">Slot Type:</label>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSlotTypes((prev) => ({ ...prev, [dayIdx]: 'REGULAR' }))}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                                      (slotTypes[dayIdx] || 'REGULAR') === 'REGULAR'
+                                        ? 'bg-[#3b82f6]/10 border-[#3b82f6]/30 text-[#60a5fa]'
+                                        : 'bg-white/[0.02] border-white/[0.08] text-white/40 hover:text-white/70'
+                                    }`}
+                                  >
+                                    Regular
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSlotTypes((prev) => ({ ...prev, [dayIdx]: 'DEMO' }))}
+                                    className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                                      (slotTypes[dayIdx] || 'REGULAR') === 'DEMO'
+                                        ? 'bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#fbbf24]'
+                                        : 'bg-white/[0.02] border-white/[0.08] text-white/40 hover:text-white/70'
+                                    }`}
+                                  >
+                                    Demo
+                                  </button>
+                                </div>
+                              </div>
                               <div className="flex items-end gap-2">
                                 <div className="flex-1">
                                   <label className="block text-[10px] text-white/40 mb-1">Start Time</label>
@@ -1179,6 +1303,23 @@ export default function MentorsPage() {
           </div>
         </div>
       )}
+      {/* Reusable Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Reusable Confirm Dialog Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

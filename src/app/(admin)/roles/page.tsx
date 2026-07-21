@@ -2,6 +2,8 @@
 
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Toast } from "@/components/ui/toast";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   ShieldAlert,
   Plus,
@@ -56,6 +58,19 @@ export default function RolesPage() {
   const [description, setDescription] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   const getHeaders = () => {
     const tokensStr = localStorage.getItem("tokens");
@@ -136,28 +151,36 @@ export default function RolesPage() {
 
   const handleDeleteRole = async (role: Role) => {
     if (role.name === "ADMIN" || role.name === "STUDENT" || role.name === "PARENT") {
-      alert("System reserved roles cannot be deleted.");
+      setToast({ message: "System reserved roles cannot be deleted.", type: "error" });
       return;
     }
     if (role.userCount > 0) {
-      alert(`Cannot delete role '${role.name}' because it is assigned to ${role.userCount} users. Reassign users first.`);
+      setToast({ message: `Cannot delete role '${role.name}' because it is assigned to ${role.userCount} users. Reassign users first.`, type: "error" });
       return;
     }
-    if (!confirm(`Are you sure you want to delete role '${role.name}'?`)) return;
 
-    try {
-      const response = await fetch(`/api/roles/${role.id}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || "Failed to delete role");
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Role",
+      message: `Are you sure you want to delete role '${role.name}'?`,
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const response = await fetch(`/api/roles/${role.id}`, {
+            method: "DELETE",
+            headers: getHeaders(),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.success) throw new Error(data.message || "Failed to delete role");
 
-      setLoading(true);
-      fetchRoles();
-    } catch (err: any) {
-      setError(err.message);
-    }
+          setLoading(true);
+          fetchRoles();
+          setToast({ message: `Role '${role.name}' deleted successfully.`, type: "success" });
+        } catch (err: any) {
+          setToast({ message: err.message || "Failed to delete role", type: "error" });
+        }
+      },
+    });
   };
 
   const togglePermission = (key: string) => {
@@ -370,6 +393,23 @@ export default function RolesPage() {
           </div>
         </div>
       )}
+      {/* Reusable Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Reusable Confirm Dialog Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

@@ -22,6 +22,17 @@ import {
   Briefcase,
 } from "lucide-react";
 
+interface NavItem {
+  href: string;
+  label: string;
+  icon: any;
+}
+
+interface NavSection {
+  title?: string;
+  items: NavItem[];
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const [role, setRole] = useState("ADMIN");
@@ -36,47 +47,127 @@ export function Sidebar() {
     } catch {}
   }, []);
 
-  // Determine dynamic navigation items based on role
-  const getNavItems = () => {
+  // Determine dynamic grouped navigation sections based on role
+  const getNavSections = (): NavSection[] => {
     switch (role) {
       case "TEACHER":
-        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
+        return [
+          {
+            items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+          },
+        ];
       case "QA_AUDITOR":
-        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
+        return [
+          {
+            items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+          },
+        ];
       case "SCHEDULER":
         return [
-          { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-          { href: "/scheduler", label: "Scheduler", icon: Calendar },
-          { href: "/students",  label: "Students",  icon: GraduationCap },
-          { href: "/customers", label: "Parents",   icon: Users },
+          {
+            title: "Overview",
+            items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+          },
+          {
+            title: "Operations",
+            items: [{ href: "/scheduler", label: "Scheduler", icon: Calendar }],
+          },
+          {
+            title: "People",
+            items: [
+              { href: "/students",  label: "Students",  icon: GraduationCap },
+              { href: "/mentors",   label: "Mentors",   icon: Briefcase },
+              { href: "/customers", label: "Parents",   icon: Users },
+            ],
+          },
         ];
       case "WAREHOUSE_ADMIN":
-        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
-      case "FINANCE_ADMIN":
-        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
-      case "STUDENT":
-        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
-      case "PARENT":
-        return [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }];
-      default:
-        // Admin gets the full list + Staff Management + User Roles + Leads CRM + Customers
         return [
-          { href: "/dashboard",     label: "Dashboard",     icon: LayoutDashboard },
-          { href: "/courses",       label: "Programs",      icon: BookOpen },
-          { href: "/sessions",      label: "Sessions",      icon: Clock },
-          { href: "/scheduler",     label: "Scheduler",     icon: Calendar },
-          { href: "/students",      label: "Students",      icon: GraduationCap },
-          { href: "/mentors",       label: "Mentors",       icon: Briefcase },
-          { href: "/customers",     label: "Parents",       icon: Users },
-          { href: "/staff",         label: "Staff Admin",   icon: UserCheck },
-          { href: "/roles",         label: "User Roles",    icon: ShieldAlert },
-          { href: "/leads",         label: "Leads CRM",     icon: Contact },
-          { href: "/analytics",     label: "Analytics",     icon: BarChart3 },
+          {
+            items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+          },
+        ];
+      case "FINANCE_ADMIN":
+        return [
+          {
+            items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+          },
+        ];
+      case "STUDENT":
+        return [
+          {
+            title: "Overview",
+            items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+          },
+          {
+            title: "Schedule",
+            items: [{ href: "/student-dashboard", label: "My Schedule", icon: Calendar }],
+          },
+        ];
+      case "PARENT":
+        return [
+          {
+            title: "Overview",
+            items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+          },
+          {
+            title: "Academics",
+            items: [{ href: "/courses", label: "Explore Programs", icon: BookOpen }],
+          },
+          {
+            title: "Schedule",
+            items: [{ href: "/parent-dashboard", label: "Children's Schedule", icon: Calendar }],
+          },
+        ];
+      default:
+        // Admin gets grouped navigation sections
+        return [
+          {
+            title: "Overview",
+            items: [
+              { href: "/dashboard",     label: "Dashboard",     icon: LayoutDashboard },
+              { href: "/analytics",     label: "Analytics",     icon: BarChart3 },
+            ],
+          },
+          {
+            title: "Academics",
+            items: [
+              { href: "/courses",       label: "Programs",      icon: BookOpen },
+              { href: "/sessions",      label: "Sessions",      icon: Clock },
+            ],
+          },
+          {
+            title: "Operations",
+            items: [
+              { href: "/scheduler",     label: "Scheduler",     icon: Calendar },
+            ],
+          },
+          {
+            title: "Sales",
+            items: [
+              { href: "/leads",         label: "Leads CRM",     icon: Contact },
+            ],
+          },
+          {
+            title: "People",
+            items: [
+              { href: "/students",      label: "Students",      icon: GraduationCap },
+              { href: "/mentors",       label: "Mentors",       icon: Briefcase },
+              { href: "/customers",     label: "Parents",       icon: Users },
+            ],
+          },
+          {
+            title: "System",
+            items: [
+              { href: "/staff",         label: "Staff Admin",   icon: UserCheck },
+              { href: "/roles",         label: "User Roles",    icon: ShieldAlert },
+            ],
+          },
         ];
     }
   };
 
-  const navItems = getNavItems();
+  const navSections = getNavSections();
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-[130px] flex-col bg-[#13161e] border-r border-white/[0.06]">
@@ -94,27 +185,41 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-col items-center gap-1 flex-1 py-4 px-2 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`
-                flex flex-col items-center gap-1.5 w-full rounded-xl px-2 py-3 text-center
-                transition-all duration-200 group
-                ${active
-                  ? "bg-[#7c5cfc]/15 text-[#7c5cfc] border border-[#7c5cfc]/25"
-                  : "text-white/50 hover:text-white/80 hover:bg-white/[0.05] border border-transparent"
-                }
-              `}
-            >
-              <Icon className={`w-5 h-5 transition-all ${active ? "text-[#7c5cfc]" : "group-hover:text-white/80"}`} />
-              <span className="text-[10px] font-medium leading-tight">{label}</span>
-            </Link>
-          );
-        })}
+      <nav className="flex flex-col gap-4 flex-1 py-4 px-2 overflow-y-auto w-full">
+        {navSections.map((section, sIdx) => (
+          <div key={sIdx} className="flex flex-col gap-1 w-full shrink-0">
+            {section.title && (
+              <div className="text-[8.5px] font-bold uppercase tracking-wider text-white/30 text-center mb-1 select-none">
+                {section.title}
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5 w-full">
+              {section.items.map(({ href, label, icon: Icon }) => {
+                const active = pathname === href || pathname.startsWith(href + "/");
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`
+                      flex flex-col items-center gap-1 w-full rounded-xl px-1.5 py-2.5 text-center
+                      transition-all duration-200 group border
+                      ${active
+                        ? "bg-[#7c5cfc]/15 text-[#7c5cfc] border-[#7c5cfc]/25"
+                        : "text-white/45 hover:text-white/80 hover:bg-white/[0.05] border-transparent"
+                      }
+                    `}
+                  >
+                    <Icon className={`w-[18px] h-[18px] transition-all ${active ? "text-[#7c5cfc]" : "group-hover:text-white/80"}`} />
+                    <span className="text-[9.5px] font-semibold leading-tight tracking-tight">{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+            {sIdx < navSections.length - 1 && (
+              <div className="h-px bg-white/[0.04] mx-2 mt-2" />
+            )}
+          </div>
+        ))}
       </nav>
 
       {/* New Course CTA (Only for Admin) */}

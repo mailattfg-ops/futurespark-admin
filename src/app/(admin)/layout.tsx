@@ -54,11 +54,11 @@ export default function AdminLayout({
       const allowedPaths: Record<string, string[]> = {
         TEACHER: ["/dashboard"],
         QA_AUDITOR: ["/dashboard"],
-        SCHEDULER: ["/dashboard", "/scheduler", "/students", "/customers"],
+        SCHEDULER: ["/dashboard", "/scheduler", "/students", "/customers", "/mentors"],
         WAREHOUSE_ADMIN: ["/dashboard"],
         FINANCE_ADMIN: ["/dashboard"],
-        STUDENT: ["/dashboard"],
-        PARENT: ["/dashboard"],
+        STUDENT: ["/dashboard", "/student-dashboard"],
+        PARENT: ["/dashboard", "/parent-dashboard"],
       };
 
       const roleAllowed = allowedPaths[user.role as string] || ["/dashboard"];

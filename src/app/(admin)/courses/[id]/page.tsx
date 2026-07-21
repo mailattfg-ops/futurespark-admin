@@ -3,6 +3,8 @@
 import { useEffect, useState, FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { Toast } from "@/components/ui/toast";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   ArrowLeft,
   Plus,
@@ -86,6 +88,7 @@ function PlanCard({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   // Sync with parent refresh
   useEffect(() => {
@@ -150,12 +153,12 @@ function PlanCard({
     
     if (type === "INSTALLMENT") {
       if (installments.length === 0) {
-        alert("Please add at least one installment entry.");
+        setToast({ message: "Please add at least one installment entry.", type: "error" });
         return;
       }
       for (const inst of installments) {
         if (!inst.name.trim() || !inst.amount || isNaN(Number(inst.amount))) {
-          alert("Please fill in valid name and amount for all installments.");
+          setToast({ message: "Please fill in valid name and amount for all installments.", type: "error" });
           return;
         }
       }
@@ -358,6 +361,13 @@ function PlanCard({
           )}
         </form>
       )}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
@@ -373,6 +383,30 @@ export default function ProgramDetailPage() {
   const [unassignedSessions, setUnassignedSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [parentAccount, setParentAccount] = useState<any>(null);
+  const [subscribing, setSubscribing] = useState(false);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const u = JSON.parse(userStr);
+      setRole(u.role);
+      if (u.role === "PARENT") {
+        const tokensStr = localStorage.getItem("tokens");
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (tokensStr) headers["Authorization"] = `Bearer ${JSON.parse(tokensStr).accessToken}`;
+        fetch(`/api/users/customers/${u.id}`, { headers })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              setParentAccount(data.data);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, []);
 
   // Session modal
   const [showSessionModal, setShowSessionModal] = useState(false);
@@ -389,11 +423,45 @@ export default function ProgramDetailPage() {
   const [guideUrl, setGuideUrl] = useState("");
   const [worksheetUrl, setWorksheetUrl] = useState("");
 
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
   const getHeaders = () => {
     const tokensStr = localStorage.getItem("tokens");
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (tokensStr) headers["Authorization"] = `Bearer ${JSON.parse(tokensStr).accessToken}`;
     return headers;
+  };
+
+  const handleSubscribe = async () => {
+    if (!parentAccount) return;
+    setSubscribing(true);
+    try {
+      const res = await fetch(`/api/users/customers/${parentAccount.id}`, {
+        method: "PUT",
+        headers: getHeaders(),
+        body: JSON.stringify({ programId: programId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || "Failed to subscribe");
+      
+      setParentAccount((prev: any) => prev ? { ...prev, programId: programId } : null);
+      setToast({ message: `Successfully subscribed to ${program?.title || "program"}!`, type: "success" });
+    } catch (err: any) {
+      setToast({ message: err.message || "Failed to subscribe to program.", type: "error" });
+    } finally {
+      setSubscribing(false);
+    }
   };
 
   const fetchProgram = async () => {
@@ -470,11 +538,23 @@ export default function ProgramDetailPage() {
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm("Remove this session from the program?")) return;
-    try {
-      await fetch(`/api/courses/sessions/${sessionId}`, { method: "DELETE", headers: getHeaders() });
-      fetchProgram();
-    } catch (err: any) { setError(err.message); }
+    setConfirmModal({
+      isOpen: true,
+      title: "Remove Session",
+      message: "Are you sure you want to remove this session from the program?",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const res = await fetch(`/api/courses/sessions/${sessionId}`, { method: "DELETE", headers: getHeaders() });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.message || "Failed to remove session.");
+          fetchProgram();
+          setToast({ message: "Session removed successfully.", type: "success" });
+        } catch (err: any) {
+          setToast({ message: err.message || "Failed to remove session.", type: "error" });
+        }
+      },
+    });
   };
 
   const handleUpdateResources = async (e: FormEvent) => {
@@ -536,10 +616,36 @@ export default function ProgramDetailPage() {
       </Link>
 
       {/* Program Header */}
-      <div className="mb-8 pb-6 border-b border-white/[0.06]">
-        <h1 className="text-3xl font-bold text-white tracking-tight mb-2">{program.title}</h1>
-        {program.description && (
-          <p className="text-white/45 text-sm max-w-2xl">{program.description}</p>
+      <div className="mb-8 pb-6 border-b border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">{program.title}</h1>
+          {program.description && (
+            <p className="text-white/45 text-sm max-w-2xl">{program.description}</p>
+          )}
+        </div>
+
+        {role === "PARENT" && parentAccount && (
+          <div className="shrink-0 bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4 flex items-center gap-3 min-w-[240px]">
+            <div className="flex-1">
+              <span className="block text-[9px] text-white/35 font-bold uppercase tracking-wider">Subscription Status</span>
+              <span className="text-xs font-semibold text-white/80">
+                {parentAccount.programId === programId ? "Active Subscription" : "Not Subscribed"}
+              </span>
+            </div>
+            {parentAccount.programId === programId ? (
+              <span className="px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-[10px] font-bold uppercase tracking-wider">
+                SUBSCRIBED
+              </span>
+            ) : (
+              <button
+                onClick={handleSubscribe}
+                disabled={subscribing}
+                className="px-3.5 py-1.5 bg-[#7c5cfc] hover:bg-[#6c4be0] text-white border border-[#7c5cfc]/30 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+              >
+                {subscribing ? "Subscribing..." : "SUBSCRIBE"}
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -564,14 +670,16 @@ export default function ProgramDetailPage() {
                 {program.sessions.length} class{program.sessions.length !== 1 ? "es" : ""} in this program
               </p>
             </div>
-            <button
-              onClick={() => { setSessionOrder(program.sessions.length + 1); setShowSessionModal(true); }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl
-                bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-xs font-semibold transition-all"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Session
-            </button>
+            {role !== "PARENT" && (
+              <button
+                onClick={() => { setSessionOrder(program.sessions.length + 1); setShowSessionModal(true); }}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl
+                  bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-xs font-semibold transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Session
+              </button>
+            )}
           </div>
 
           {program.sessions.length === 0 ? (
@@ -602,11 +710,17 @@ export default function ProgramDetailPage() {
                           { icon: Presentation, v: sess.slidesUrl, c: "amber", label: "Slides" },
                           { icon: FileText, v: sess.guideUrl, c: "teal", label: "Guide" },
                           { icon: BookOpen, v: sess.worksheetUrl, c: "purple", label: "Worksheet" },
-                        ].map(({ icon: Icon, v, c, label }) => (
+                        ].filter(({ v }) => role !== "PARENT" || !!v).map(({ icon: Icon, v, c, label }) => (
                           <button
                             key={label}
-                            onClick={() => openResourceModal(sess)}
-                            title={v ? label : `Add ${label}`}
+                            onClick={() => {
+                              if (role === "PARENT") {
+                                if (v) window.open(v, "_blank");
+                              } else {
+                                openResourceModal(sess);
+                              }
+                            }}
+                            title={role === "PARENT" ? `Open ${label}` : (v ? label : `Add ${label}`)}
                             className={`flex items-center gap-1 text-[10px] font-medium px-2 py-1.5 rounded-lg border transition-all ${
                               v
                                 ? c === "amber" ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
@@ -620,20 +734,24 @@ export default function ProgramDetailPage() {
                           </button>
                         ))}
                       </div>
-                      <button
-                        onClick={() => openResourceModal(sess)}
-                        className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/35 hover:text-white transition-all"
-                        title="Edit assets"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSession(sess.id)}
-                        className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                        title="Remove session"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {role !== "PARENT" && (
+                        <>
+                          <button
+                            onClick={() => openResourceModal(sess)}
+                            className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/35 hover:text-white transition-all"
+                            title="Edit assets"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSession(sess.id)}
+                            className="p-1.5 rounded bg-white/[0.03] border border-white/[0.06] text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                            title="Remove session"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -649,33 +767,69 @@ export default function ProgramDetailPage() {
               <DollarSign className="w-5 h-5 text-[#00d4aa]" />
               Payment Plans
             </h2>
-            <p className="text-white/35 text-xs mt-0.5">
-              Enable up to 2 pricing tiers for this program. Check a plan to activate and configure it.
-            </p>
+            {role !== "PARENT" && (
+              <p className="text-white/35 text-xs mt-0.5">
+                Enable up to 2 pricing tiers for this program. Check a plan to activate and configure it.
+              </p>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <PlanCard
-              type="FULL"
-              label="Full Payment"
-              subtitle="One-time complete course payment"
-              icon={Zap}
-              existing={fullPlan}
-              programId={programId}
-              onSaved={fetchProgram}
-              onDeleted={fetchProgram}
-            />
-            <PlanCard
-              type="INSTALLMENT"
-              label="Installment Plan"
-              subtitle="Split into multiple payments"
-              icon={Layers}
-              existing={installmentPlan}
-              programId={programId}
-              onSaved={fetchProgram}
-              onDeleted={fetchProgram}
-            />
-          </div>
+          {role === "PARENT" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {program.paymentPlans.map(plan => (
+                <div key={plan.id} className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-6 shadow-md">
+                  <span className="inline-flex items-center px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider bg-[#00d4aa]/10 text-[#00d4aa] border border-[#00d4aa]/25 mb-4">
+                    {plan.type === "FULL" ? "One-Time Pay" : "Installment Plan"}
+                  </span>
+                  <h3 className="text-2xl font-bold text-white mb-2">
+                    ${plan.price.toLocaleString()} USD
+                  </h3>
+                  {plan.description && (
+                    <p className="text-xs text-white/40 mb-4">{plan.description}</p>
+                  )}
+                  {plan.installments && plan.installments.length > 0 && (
+                    <div className="space-y-2 mt-4 pt-4 border-t border-white/[0.05]">
+                      <h4 className="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-2">Installment breakdown</h4>
+                      {plan.installments.map((inst: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center text-xs text-white/50 border-b border-white/[0.02] pb-1.5 last:border-b-0 last:pb-0">
+                          <span>{inst.name}</span>
+                          <span className="font-semibold text-white">${inst.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {program.paymentPlans.length === 0 && (
+                <div className="col-span-2 text-center py-6 border border-dashed border-white/[0.07] rounded-2xl">
+                  <p className="text-white/40 text-xs italic">No payment plans have been set up for this program.</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <PlanCard
+                type="FULL"
+                label="Full Payment"
+                subtitle="One-time complete course payment"
+                icon={Zap}
+                existing={fullPlan}
+                programId={programId}
+                onSaved={fetchProgram}
+                onDeleted={fetchProgram}
+              />
+              <PlanCard
+                type="INSTALLMENT"
+                label="Installment Plan"
+                subtitle="Split into multiple payments"
+                icon={Layers}
+                existing={installmentPlan}
+                programId={programId}
+                onSaved={fetchProgram}
+                onDeleted={fetchProgram}
+              />
+            </div>
+          )}
         </section>
       </div>
 
@@ -816,6 +970,23 @@ export default function ProgramDetailPage() {
           </div>
         </div>
       )}
+      {/* Reusable Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Reusable Confirm Dialog Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

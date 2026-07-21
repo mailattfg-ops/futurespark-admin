@@ -2,6 +2,8 @@
 
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Toast } from "@/components/ui/toast";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   Contact,
   Plus,
@@ -42,6 +44,7 @@ interface Lead {
     title: string;
   } | null;
   notes: string | null;
+  demoClass: boolean;
   createdAt: string;
 }
 
@@ -78,6 +81,7 @@ export default function LeadsPage() {
   const [status, setStatus] = useState<"NEW" | "CONTACTED" | "INTERESTED" | "ENROLLED" | "LOST">("NEW");
   const [programId, setProgramId] = useState("");
   const [notes, setNotes] = useState("");
+  const [demoClass, setDemoClass] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   // Dynamic roles loading
@@ -86,6 +90,19 @@ export default function LeadsPage() {
   // Student Account Auto-Creation Alert Modal
   const [showStudentCreatedModal, setShowStudentCreatedModal] = useState(false);
   const [studentCredentials, setStudentCredentials] = useState<any | null>(null);
+
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
   const [copiedStudentEmail, setCopiedStudentEmail] = useState(false);
   const [copiedStudentPassword, setCopiedStudentPassword] = useState(false);
   const [copiedParentEmail, setCopiedParentEmail] = useState(false);
@@ -146,6 +163,7 @@ export default function LeadsPage() {
     setStatus("NEW");
     setProgramId("");
     setNotes("");
+    setDemoClass(false);
     setShowModal(true);
   };
 
@@ -159,6 +177,7 @@ export default function LeadsPage() {
     setStatus(lead.status);
     setProgramId(lead.programId || "");
     setNotes(lead.notes || "");
+    setDemoClass(lead.demoClass ?? false);
     setShowModal(true);
   };
 
@@ -181,6 +200,7 @@ export default function LeadsPage() {
         status,
         programId: programId || undefined,
         notes: notes.trim() || undefined,
+        demoClass,
       };
 
       const response = await fetch(url, {
@@ -204,6 +224,7 @@ export default function LeadsPage() {
           const parentPayload = {
             email: email.trim(),
             password: tempParentPassword,
+            programId: programId || null,
             profiles: [
               {
                 firstName: firstName.trim(),
@@ -238,28 +259,38 @@ export default function LeadsPage() {
 
       setLoading(true);
       fetchData();
+      setToast({ message: isEdit ? "Lead updated successfully." : "Lead created successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to save lead.", type: "error" });
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDeleteLead = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this lead? This action cannot be undone.")) return;
-    try {
-      const response = await fetch(`/api/courses/leads/${id}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || "Failed to delete lead");
-      
-      setLoading(true);
-      fetchData();
-    } catch (err: any) {
-      setError(err.message);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Lead",
+      message: "Are you sure you want to delete this lead? This action cannot be undone.",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const response = await fetch(`/api/courses/leads/${id}`, {
+            method: "DELETE",
+            headers: getHeaders(),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.success) throw new Error(data.message || "Failed to delete lead");
+          
+          setLoading(true);
+          fetchData();
+          setToast({ message: "Lead record deleted successfully.", type: "success" });
+        } catch (err: any) {
+          setToast({ message: err.message || "Failed to delete lead.", type: "error" });
+        }
+      },
+    });
   };
 
   const handleCopyStudent = (text: string, type: 'email' | 'pass' | 'pemail' | 'ppass') => {
@@ -374,6 +405,7 @@ export default function LeadsPage() {
               <tr className="border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-bold text-white/35 uppercase tracking-wider">
                 <th className="px-6 py-4">Lead Name</th>
                 <th className="px-6 py-4">Contact Info</th>
+                <th className="px-6 py-4">Demo Class</th>
                 <th className="px-6 py-4">Admissions Status</th>
                 <th className="px-6 py-4">Program Interest</th>
                 <th className="px-6 py-4">Source / Date</th>
@@ -407,6 +439,17 @@ export default function LeadsPage() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {lead.demoClass ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">
+                          Yes
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border bg-white/[0.04] border-white/10 text-white/30">
+                          No
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[10px] font-semibold border ${badge.style}`}>
@@ -576,6 +619,20 @@ export default function LeadsPage() {
                 </div>
               </div>
 
+              {/* Demo Class Checkbox */}
+              <div className="flex items-center justify-between bg-white/[0.02] border border-white/[0.06] rounded-xl p-3">
+                <div>
+                  <p className="text-xs font-semibold text-white">Demo Class Required</p>
+                  <p className="text-[10px] text-white/30">Does this lead need/have scheduled a demo class?</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={demoClass}
+                  onChange={e => setDemoClass(e.target.checked)}
+                  className="w-4 h-4 accent-[#7c5cfc] cursor-pointer"
+                />
+              </div>
+
               {/* Notes */}
               <div>
                 <label className="block text-xs text-white/50 mb-1.5 font-medium flex items-center gap-1.5">
@@ -676,6 +733,23 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+      {/* Reusable Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Reusable Confirm Dialog Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

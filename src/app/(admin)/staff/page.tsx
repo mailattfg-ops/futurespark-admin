@@ -2,6 +2,8 @@
 
 import { useEffect, useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { Toast } from "@/components/ui/toast";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   UserCheck,
   Plus,
@@ -87,6 +89,19 @@ export default function StaffPage() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetUser, setResetUser] = useState<StaffUser | null>(null);
   const [newTempPassword, setNewTempPassword] = useState("");
+
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   const getHeaders = () => {
     const tokensStr = localStorage.getItem("tokens");
@@ -208,8 +223,10 @@ export default function StaffPage() {
 
       setLoading(true);
       fetchData();
+      setToast({ message: isEdit ? "Staff member account updated successfully." : "Staff member account created successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to save staff account.", type: "error" });
     } finally {
       setActionLoading(false);
     }
@@ -241,8 +258,10 @@ export default function StaffPage() {
       setCredentialsData({ email: resetUser.email, password: newTempPassword });
       setShowCredentialsModal(true);
       fetchData();
+      setToast({ message: "Staff account password reset successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to reset password.", type: "error" });
     } finally {
       setActionLoading(false);
     }
@@ -260,20 +279,28 @@ export default function StaffPage() {
   };
 
   const handleDeleteStaff = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this staff member? This action is permanent.")) return;
-    try {
-      const response = await fetch(`/api/users/${id}`, {
-        method: "DELETE",
-        headers: getHeaders(),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || "Failed to delete account");
-      
-      setLoading(true);
-      fetchData();
-    } catch (err: any) {
-      setError(err.message);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Staff Member",
+      message: "Are you sure you want to delete this staff member? This action is permanent.",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const response = await fetch(`/api/users/${id}`, {
+            method: "DELETE",
+            headers: getHeaders(),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.success) throw new Error(data.message || "Failed to delete account");
+          
+          setLoading(true);
+          fetchData();
+          setToast({ message: "Staff member account deleted successfully.", type: "success" });
+        } catch (err: any) {
+          setToast({ message: err.message || "Failed to delete account.", type: "error" });
+        }
+      },
+    });
   };
 
   const toggleQualifiedProgram = (progId: string) => {
@@ -717,6 +744,23 @@ export default function StaffPage() {
           </div>
         </div>
       )}
+      {/* Reusable Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Reusable Confirm Dialog Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }

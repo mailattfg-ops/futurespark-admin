@@ -1,65 +1,161 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, GraduationCap, Calendar, Compass, ShieldCheck } from "lucide-react";
+import { BookOpen, GraduationCap, Calendar, Compass, ShieldCheck, Loader2, AlertCircle, Clock } from "lucide-react";
 
 export default function StudentDashboard() {
   const [userName, setUserName] = useState("Student");
   const [userEmail, setUserEmail] = useState("");
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const getHeaders = () => {
+    const tokensStr = localStorage.getItem("tokens");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (tokensStr) {
+      headers["Authorization"] = `Bearer ${JSON.parse(tokensStr).accessToken}`;
+    }
+    return headers;
+  };
 
   useEffect(() => {
-    try {
-      const userStr = localStorage.getItem("user");
-      if (userStr) {
+    const fetchDashboardData = async () => {
+      try {
+        const userStr = localStorage.getItem("user");
+        if (!userStr) return;
         const user = JSON.parse(userStr);
         setUserName([user.firstName, user.lastName].filter(Boolean).join(" ") || "Student");
         setUserEmail(user.email);
+
+        const headers = getHeaders();
+        const fetchJson = async (url: string) => {
+          const res = await fetch(url, { headers });
+          if (!res.ok) {
+            let errMsg = `Request to ${url} failed with status ${res.status}`;
+            try {
+              const errData = await res.json();
+              if (errData && errData.message) errMsg = errData.message;
+            } catch { }
+            throw new Error(errMsg);
+          }
+          const data = await res.json();
+          if (data && data.success === false) {
+            throw new Error(data.message || `Request to ${url} returned unsuccessful status`);
+          }
+          return data;
+        };
+
+        const [dataScheds, dataProgs, dataSess] = await Promise.all([
+          fetchJson(`/api/schedules?studentId=${user.id}`),
+          fetchJson("/api/courses"),
+          fetchJson("/api/courses/sessions"),
+        ]);
+
+        setSchedules(dataScheds.data || []);
+        setPrograms(dataProgs.data || []);
+        setSessions(dataSess.data || []);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
-    } catch {}
+    };
+
+    fetchDashboardData();
   }, []);
 
+  const activeSchedulesCount = schedules.filter((c) => c.status === "SCHEDULED").length;
+  const uniqueProgramIds = Array.from(new Set(schedules.map((c) => c.programId)));
+
   return (
-    <div className="p-8 w-full">
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-500/10 to-teal-500/10 border border-white/[0.08] rounded-3xl p-8 mb-8 shadow-2xl">
-        <div className="relative z-10">
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase tracking-wider mb-3 border border-blue-500/20">
-            <GraduationCap className="w-3.5 h-3.5" /> Student Hub
-          </span>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
-            Learning Portal
-          </h1>
-          <p className="text-white/45 text-sm mt-1">Logged in as: {userName} ({userEmail})</p>
-        </div>
+    <div className="p-8 w-full max-w-7xl mx-auto">
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+          <Calendar className="w-8 h-8 text-[#7c5cfc]" /> My Learning Schedule
+        </h1>
+        <p className="text-white/45 text-sm mt-1">
+          View your upcoming learning classes, topic files, and assigned mentors.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white/50">My Enrolled Courses</span>
-            <BookOpen className="w-4 h-4 text-blue-400" />
-          </div>
-          <p className="text-2xl font-bold text-white">0</p>
-          <p className="text-[10px] text-white/35">Explore programs to enroll and start learning.</p>
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-[#7c5cfc]" />
         </div>
-
-        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white/50">Upcoming Classes</span>
-            <Calendar className="w-4 h-4 text-purple-400" />
-          </div>
-          <p className="text-2xl font-bold text-white">None Scheduled</p>
-          <p className="text-[10px] text-white/35">Check back after enrolling in a program.</p>
+      ) : error ? (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-xs">
+          {error}
         </div>
-
-        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white/50">Certificates Earned</span>
-            <Compass className="w-4 h-4 text-[#00d4aa]" />
-          </div>
-          <p className="text-2xl font-bold text-white">0</p>
-          <p className="text-[10px] text-white/35">Complete courses to earn official credentials.</p>
+      ) : schedules.length === 0 ? (
+        <div className="text-center py-16 bg-[#161b27] border border-white/[0.07] rounded-2xl shadow-xl">
+          <Calendar className="w-12 h-12 text-white/10 mx-auto mb-4" />
+          <p className="text-white/50 font-medium">No learning classes scheduled yet.</p>
+          <p className="text-white/25 text-xs mt-1">Please contact your teacher or administrator.</p>
         </div>
-      </div>
+      ) : (
+        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
+          <div className="divide-y divide-white/[0.05]">
+            {schedules.map((c) => {
+              const program = programs.find((p) => p.id === c.programId);
+              const session = sessions.find((s) => s.id === c.sessionId);
+              const classDate = new Date(c.startTime);
+              return (
+                <div key={c.id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-white/[0.015] transition-all">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex flex-col items-center justify-center shrink-0">
+                      <span className="text-[10px] text-purple-400 font-bold uppercase">
+                        {classDate.toLocaleDateString("en-GB", { month: "short" })}
+                      </span>
+                      <span className="text-base font-extrabold text-white leading-none">
+                        {classDate.getDate()}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">
+                        {program ? program.title : "Course Topic"}
+                      </h4>
+                      {session && (
+                        <p className="text-xs text-white/45 mt-0.5">
+                          {session.title.toLowerCase().startsWith("session")
+                            ? session.title
+                            : `Session ${session.order}: ${session.title}`}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-white/35 mt-1.5 flex items-center gap-1">
+                        Mentor: <span className="font-semibold text-[#00d4aa]">{c.mentor.firstName} {c.mentor.lastName}</span> ({c.mentor.email})
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between md:justify-end gap-6 shrink-0">
+                    <div className="text-right">
+                      <div className="text-xs font-semibold text-white/80">
+                        {classDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                      </div>
+                      <div className="text-[10px] text-white/40 mt-0.5">
+                        {classDate.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short", year: "numeric" })}
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-wider border ${c.status === "COMPLETED"
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                          : c.status === "CANCELLED"
+                            ? "bg-red-500/10 border-red-500/20 text-red-400"
+                            : "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                        }`}
+                    >
+                      {c.status}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

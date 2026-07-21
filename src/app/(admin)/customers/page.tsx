@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Toast } from "@/components/ui/toast";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import {
   Users,
   Search,
@@ -66,12 +68,14 @@ interface ParentAccount {
   profiles: ParentProfile[];
   students: Student[];
   createdAt: string;
+  programId?: string | null;
 }
 
 export default function CustomersPage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<ParentAccount[]>([]);
   const [schedules, setSchedules] = useState<ScheduledClass[]>([]);
+  const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +92,7 @@ export default function CustomersPage() {
   const [parentForm, setParentForm] = useState({
     email: "",
     password: "",
+    programId: "",
     p1FirstName: "",
     p1LastName: "",
     p1Phone: "",
@@ -134,8 +139,9 @@ export default function CustomersPage() {
 
   // Edit Parent Account states
   const [editParentAccountOpen, setEditParentAccountOpen] = useState(false);
-  const [editParentAccountTarget, setEditParentAccountTarget] = useState<{ id: string; email: string } | null>(null);
+  const [editParentAccountTarget, setEditParentAccountTarget] = useState<{ id: string; email: string; programId?: string | null } | null>(null);
   const [parentAccountEmail, setParentAccountEmail] = useState("");
+  const [parentAccountProgramId, setParentAccountProgramId] = useState("");
   const [submittingEditParentAccount, setSubmittingEditParentAccount] = useState(false);
 
   // Edit Parent Profile states
@@ -155,6 +161,19 @@ export default function CustomersPage() {
   const [resetTarget, setResetTarget] = useState<{ type: 'parent' | 'student'; id: string; email: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [submittingReset, setSubmittingReset] = useState(false);
+
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   const handleCopyCredentials = (text: string, type: 'email' | 'pass') => {
     navigator.clipboard.writeText(text);
@@ -179,9 +198,10 @@ export default function CustomersPage() {
   const fetchCustomers = async () => {
     try {
       const headers = getHeaders();
-      const [custRes, schedRes] = await Promise.all([
+      const [custRes, schedRes, progRes] = await Promise.all([
         fetch("/api/users/customers", { headers }),
         fetch("/api/schedules", { headers }),
+        fetch("/api/courses", { headers }),
       ]);
 
       if (custRes.status === 401) {
@@ -197,6 +217,9 @@ export default function CustomersPage() {
       const schedData = await schedRes.json();
       setSchedules(schedData.success ? schedData.data ?? [] : []);
       setCustomers(data.data || []);
+
+      const progData = await progRes.json();
+      setPrograms(progData.success ? progData.data ?? [] : []);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to connect to microservices backend");
@@ -252,7 +275,8 @@ export default function CustomersPage() {
         body: JSON.stringify({
           email: parentForm.email,
           password: parentForm.password,
-          profiles
+          profiles,
+          programId: parentForm.programId || null
         })
       });
 
@@ -268,6 +292,7 @@ export default function CustomersPage() {
       setParentForm({
         email: "",
         password: "",
+        programId: "",
         p1FirstName: "",
         p1LastName: "",
         p1Phone: "",
@@ -285,8 +310,10 @@ export default function CustomersPage() {
         email: parentEmail,
         password: parentPassword
       });
+      setToast({ message: "Parent account created successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to create parent account.", type: "error" });
     } finally {
       setSubmittingParent(false);
     }
@@ -329,8 +356,10 @@ export default function CustomersPage() {
         password: studentPassword,
         studentName: studentFullName
       });
+      setToast({ message: "Student account created successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to create student account.", type: "error" });
     } finally {
       setSubmittingStudent(false);
     }
@@ -368,8 +397,10 @@ export default function CustomersPage() {
       setAddProfileModalOpen(false);
       setAddProfileParentId(null);
       fetchCustomers();
+      setToast({ message: "Parent profile added successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to add parent profile.", type: "error" });
     } finally {
       setSubmittingProfile(false);
     }
@@ -385,19 +416,24 @@ export default function CustomersPage() {
       const res = await fetch(`/api/users/customers/${editParentAccountTarget.id}`, {
         method: "PUT",
         headers: getHeaders(),
-        body: JSON.stringify({ email: parentAccountEmail.trim() })
+        body: JSON.stringify({ 
+          email: parentAccountEmail.trim(),
+          programId: parentAccountProgramId || null
+        })
       });
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.message || "Failed to update parent email");
+        throw new Error(data.message || "Failed to update parent account");
       }
 
       setEditParentAccountOpen(false);
       setEditParentAccountTarget(null);
       fetchCustomers();
+      setToast({ message: "Parent account details updated successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to update parent account.", type: "error" });
     } finally {
       setSubmittingEditParentAccount(false);
     }
@@ -429,8 +465,10 @@ export default function CustomersPage() {
       setEditProfileOpen(false);
       setEditProfileTarget(null);
       fetchCustomers();
+      setToast({ message: "Parent profile updated successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to update parent profile.", type: "error" });
     } finally {
       setSubmittingEditProfile(false);
     }
@@ -461,8 +499,10 @@ export default function CustomersPage() {
       setEditStudentOpen(false);
       setEditStudentTarget(null);
       fetchCustomers();
+      setToast({ message: "Student profile updated successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to update student profile.", type: "error" });
     } finally {
       setSubmittingEditStudent(false);
     }
@@ -500,45 +540,63 @@ export default function CustomersPage() {
         password: newPassword,
         studentName: resetTarget.type === 'student' ? 'Student' : undefined
       });
+      setToast({ message: "Account password reset successfully.", type: "success" });
     } catch (err: any) {
       setError(err.message);
+      setToast({ message: err.message || "Failed to reset account password.", type: "error" });
     } finally {
       setSubmittingReset(false);
     }
   };
 
   const handleDeleteParent = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this customer account? This will permanently delete both parent profiles and all linked student logins.")) return;
-    try {
-      const res = await fetch(`/api/users/customers/${id}`, {
-        method: "DELETE",
-        headers: getHeaders()
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Failed to delete parent account");
-      }
-      fetchCustomers();
-    } catch (err: any) {
-      setError(err.message);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Customer Account",
+      message: "Are you sure you want to delete this customer account? This will permanently delete both parent profiles and all linked student logins.",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const res = await fetch(`/api/users/customers/${id}`, {
+            method: "DELETE",
+            headers: getHeaders()
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || "Failed to delete parent account");
+          }
+          fetchCustomers();
+          setToast({ message: "Customer account deleted successfully.", type: "success" });
+        } catch (err: any) {
+          setToast({ message: err.message || "Failed to delete customer account.", type: "error" });
+        }
+      },
+    });
   };
 
   const handleDeleteStudent = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this student profile?")) return;
-    try {
-      const res = await fetch(`/api/users/customers/students/${id}`, {
-        method: "DELETE",
-        headers: getHeaders()
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Failed to delete student login");
-      }
-      fetchCustomers();
-    } catch (err: any) {
-      setError(err.message);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Student Profile",
+      message: "Are you sure you want to delete this student profile?",
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const res = await fetch(`/api/users/customers/students/${id}`, {
+            method: "DELETE",
+            headers: getHeaders()
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            throw new Error(data.message || "Failed to delete student login");
+          }
+          fetchCustomers();
+          setToast({ message: "Student profile deleted successfully.", type: "success" });
+        } catch (err: any) {
+          setToast({ message: err.message || "Failed to delete student profile.", type: "error" });
+        }
+      },
+    });
   };
 
   const filteredCustomers = customers.filter(c => {
@@ -647,14 +705,22 @@ export default function CustomersPage() {
                         <span className="flex items-center gap-1.5">
                           <Mail className="w-3.5 h-3.5" />
                           {customer.email}
-                           {role === "ADMIN" && (
-                             <>
+                        </span>
+                        {customer.programId && (
+                          <span className="flex items-center gap-1 bg-rose-500/10 border border-rose-500/20 text-[10px] text-rose-400 font-bold px-2 py-0.5 rounded-full">
+                            <BookOpen className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+                            {programs.find(p => p.id === customer.programId)?.title || "Program Subscribed"}
+                          </span>
+                        )}
+                        {role === "ADMIN" && (
+                          <span className="flex items-center gap-1.5">
                                <button
                                  type="button"
                                  onClick={(e) => {
                                    e.stopPropagation();
-                                   setEditParentAccountTarget({ id: customer.id, email: customer.email });
+                                   setEditParentAccountTarget({ id: customer.id, email: customer.email, programId: customer.programId });
                                    setParentAccountEmail(customer.email);
+                                   setParentAccountProgramId(customer.programId || "");
                                    setEditParentAccountOpen(true);
                                  }}
                                  className="p-1 rounded bg-white/[0.04] border border-white/[0.08] text-white/40 hover:text-white hover:bg-[#7c5cfc]/20 hover:border-[#7c5cfc]/30 transition-all"
@@ -674,9 +740,8 @@ export default function CustomersPage() {
                                >
                                  <Key className="w-3 h-3" />
                                </button>
-                             </>
+                             </span>
                            )}
-                        </span>
                         <span className="flex items-center gap-1.5">
                           <Calendar className="w-3.5 h-3.5" />
                           Registered {new Date(customer.createdAt).toLocaleDateString()}
@@ -942,6 +1007,25 @@ export default function CustomersPage() {
                       placeholder="At least 8 chars"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Assigned Program selection */}
+              <div className="pt-2 border-t border-white/[0.04]">
+                <h4 className="text-[10px] font-bold text-[#7c5cfc] uppercase tracking-wider mb-2.5">Program Subscription (Optional)</h4>
+                <div>
+                  <label className="block text-[10px] text-white/40 uppercase font-bold mb-1.5">Select Program</label>
+                  <select
+                    value={parentForm.programId}
+                    onChange={e => setParentForm(prev => ({ ...prev, programId: e.target.value }))}
+                    className="w-full bg-[#161b27] border border-white/[0.08] rounded-xl px-3 py-2
+                      text-xs text-white focus:outline-none focus:border-[#7c5cfc]"
+                  >
+                    <option value="">No Program Assigned</option>
+                    {programs.map(p => (
+                      <option key={p.id} value={p.id}>{p.title}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -1363,7 +1447,7 @@ export default function CustomersPage() {
             <div className="px-6 py-4 border-b border-white/[0.06] bg-white/[0.02] flex items-center justify-between">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Edit2 className="w-4 h-4 text-[#7c5cfc]" />
-                Edit Parent Account Email
+                Edit Parent Account details
               </h3>
               <button 
                 onClick={() => {
@@ -1388,6 +1472,21 @@ export default function CustomersPage() {
                     text-xs text-white focus:outline-none focus:border-[#7c5cfc]"
                   placeholder="parent@example.com"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-white/40 uppercase font-bold mb-1.5">Assigned Program</label>
+                <select
+                  value={parentAccountProgramId}
+                  onChange={e => setParentAccountProgramId(e.target.value)}
+                  className="w-full bg-[#161b27] border border-white/[0.08] rounded-xl px-3 py-2
+                    text-xs text-white focus:outline-none focus:border-[#7c5cfc]"
+                >
+                  <option value="">No Program Assigned</option>
+                  {programs.map(p => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/[0.06]">
@@ -1660,6 +1759,23 @@ export default function CustomersPage() {
           </div>
         </div>
       )}
+      {/* Reusable Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Reusable Confirm Dialog Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 }
