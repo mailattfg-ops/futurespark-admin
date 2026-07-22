@@ -90,7 +90,11 @@ function PaymentDetailPanel({
   const installmentPlan = plans.find(p => p.type === "INSTALLMENT");
   const fullPlan = plans.find(p => p.type === "FULL");
 
+  const hasPaidAny = (selectedPlanType === "FULL" && parent.paymentApproved) ||
+    (selectedPlanType === "INSTALLMENT" && (parent.paidInstallmentIds || []).length > 0);
+
   const handleSelectPlan = async (planType: string) => {
+    if (hasPaidAny && planType !== selectedPlanType) return;
     setSaving("plan");
     try {
       await onUpdatePayment(parent.id, {
@@ -144,20 +148,30 @@ function PaymentDetailPanel({
     <div className="px-5 py-4 space-y-4">
       {/* Plan Selector */}
       <div>
-        <p className="text-[10px] font-bold text-white/35 uppercase tracking-wider mb-2">
-          Select Payment Plan
-        </p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold text-white/35 uppercase tracking-wider">
+            Select Payment Plan
+          </p>
+          {hasPaidAny && (
+            <span className="text-[9px] text-[#00d4aa] bg-[#00d4aa]/10 border border-[#00d4aa]/20 px-2 py-0.5 rounded-md font-semibold">
+              🔒 Locked — Payments Recorded
+            </span>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
           {plans.map(plan => (
             <button
               key={plan.id}
               onClick={() => handleSelectPlan(plan.type)}
-              disabled={saving === "plan"}
+              disabled={saving === "plan" || (hasPaidAny && selectedPlanType !== plan.type)}
               className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[11px] font-semibold transition-all ${
                 selectedPlanType === plan.type
                   ? "bg-[#7c5cfc]/15 border-[#7c5cfc]/50 text-[#a78bfa]"
+                  : hasPaidAny
+                  ? "bg-white/[0.01] border-white/[0.03] text-white/10 cursor-not-allowed"
                   : "bg-white/[0.02] border-white/[0.07] text-white/40 hover:border-white/20 hover:text-white/60"
               }`}
+              title={hasPaidAny && selectedPlanType !== plan.type ? "Plan type cannot be changed after payments are recorded." : ""}
             >
               {plan.type === "FULL" ? (
                 <DollarSign className="w-3.5 h-3.5" />
