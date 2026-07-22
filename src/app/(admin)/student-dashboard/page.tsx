@@ -9,6 +9,11 @@ export default function StudentDashboard() {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [parentPayment, setParentPayment] = useState<{
+    paymentApproved: boolean;
+    selectedPlanType: string | null;
+    paidInstallmentIds: string[];
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +62,23 @@ export default function StudentDashboard() {
         setSchedules(dataScheds.data || []);
         setPrograms(dataProgs.data || []);
         setSessions(dataSess.data || []);
+
+        // Fetch parent account to determine payment access
+        // The student's parentAccountId is available from /api/users/customers/students
+        // We fetch the student's own data which includes parentAccount
+        try {
+          const studentsData = await fetchJson("/api/users/customers/students");
+          const me = (studentsData.data || []).find((s: any) => s.id === user.id);
+          if (me?.parentAccount) {
+            setParentPayment({
+              paymentApproved: me.parentAccount.paymentApproved ?? false,
+              selectedPlanType: me.parentAccount.selectedPlanType ?? null,
+              paidInstallmentIds: me.parentAccount.paidInstallmentIds ?? [],
+            });
+          }
+        } catch {
+          // non-fatal: fall back to showing all sessions
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -67,6 +89,7 @@ export default function StudentDashboard() {
     fetchDashboardData();
   }, []);
 
+
   const [now, setNow] = useState<number>(Date.now());
 
   useEffect(() => {
@@ -76,6 +99,24 @@ export default function StudentDashboard() {
 
   const activeSchedulesCount = schedules.filter((c) => c.status === "SCHEDULED").length;
   const uniqueProgramIds = Array.from(new Set(schedules.map((c) => c.programId)));
+
+  // Payment-aware session unlock check
+  const isSessionUnlocked = (sessionId: string): boolean => {
+    if (!parentPayment) return true; // fallback: show all if payment data unavailable
+    if (parentPayment.paymentApproved) return true;
+    if (parentPayment.selectedPlanType === "INSTALLMENT") {
+      const sess = sessions.find(s => s.id === sessionId);
+      if (!sess?.installmentId) return true; // not gated
+      return parentPayment.paidInstallmentIds.includes(sess.installmentId);
+    }
+    return false;
+  };
+
+  const hasAnyAccess = !parentPayment || parentPayment.paymentApproved ||
+    (parentPayment.selectedPlanType === "INSTALLMENT" && parentPayment.paidInstallmentIds.length > 0);
+
+  // Only show schedules for sessions the student has paid access to
+  const accessibleSchedules = schedules.filter(c => isSessionUnlocked(c.sessionId));
 
   return (
     <div className="p-8 w-full max-w-7xl mx-auto">
@@ -89,6 +130,20 @@ export default function StudentDashboard() {
         </p>
       </div>
 
+      {/* Payment access banner */}
+      {!hasAnyAccess && !loading && (
+        <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-red-500/[0.06] border border-red-500/20 text-red-400 text-xs">
+          <ShieldCheck className="w-4 h-4 shrink-0" />
+          <span>Your sessions are locked. Payment has not been approved yet. Please contact your parent or the admin team.</span>
+        </div>
+      )}
+      {parentPayment && !parentPayment.paymentApproved && parentPayment.selectedPlanType === "INSTALLMENT" && parentPayment.paidInstallmentIds.length > 0 && !loading && (
+        <div className="mb-6 flex items-center gap-3 p-4 rounded-2xl bg-amber-500/[0.06] border border-amber-500/20 text-amber-400 text-xs">
+          <GraduationCap className="w-4 h-4 shrink-0" />
+          <span>Installment plan — {accessibleSchedules.length} of {schedules.length} sessions unlocked. More sessions unlock as installments are paid.</span>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-[#7c5cfc]" />
@@ -97,16 +152,17 @@ export default function StudentDashboard() {
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400 text-xs">
           {error}
         </div>
-      ) : schedules.length === 0 ? (
+      ) : accessibleSchedules.length === 0 ? (
         <div className="text-center py-16 bg-[#161b27] border border-white/[0.07] rounded-2xl shadow-xl">
           <Calendar className="w-12 h-12 text-white/10 mx-auto mb-4" />
-          <p className="text-white/50 font-medium">No learning classes scheduled yet.</p>
-          <p className="text-white/25 text-xs mt-1">Please contact your teacher or administrator.</p>
+          <p className="text-white/50 font-medium">{hasAnyAccess ? "No learning classes scheduled yet." : "Sessions locked — no payment approved."}</p>
+          <p className="text-white/25 text-xs mt-1">{hasAnyAccess ? "Please contact your teacher or administrator." : "Please contact the admin or finance team."}</p>
         </div>
       ) : (
         <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
           <div className="divide-y divide-white/[0.05]">
-            {schedules.map((c) => {
+            {accessibleSchedules.map((c) => {
+
               const program = programs.find((p) => p.id === c.programId);
               const session = sessions.find((s) => s.id === c.sessionId);
               const classDate = new Date(c.startTime);

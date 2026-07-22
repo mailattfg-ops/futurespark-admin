@@ -139,6 +139,10 @@ export default function MentorsPage() {
   const [scheduleMentor, setScheduleMentor] = useState<MentorUser | null>(null);
   const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  
+  const allowedTypes = (scheduleMentor?.mentorTypes && scheduleMentor.mentorTypes.length > 0
+    ? scheduleMentor.mentorTypes
+    : ["REGULAR"]) as ("REGULAR" | "DEMO")[];
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
@@ -374,7 +378,10 @@ export default function MentorsPage() {
       return;
     }
 
-    const scheduleType = slotTypes[day] || "REGULAR";
+    let scheduleType = slotTypes[day] || (allowedTypes.includes("REGULAR") ? "REGULAR" : "DEMO");
+    if (!allowedTypes.includes(scheduleType)) {
+      scheduleType = allowedTypes[0];
+    }
 
     setSlotAdding((prev) => ({ ...prev, [day]: true }));
     setSlotErrors((prev) => ({ ...prev, [day]: "" }));
@@ -1031,70 +1038,74 @@ export default function MentorsPage() {
                         {isExpanded && (
                           <div className="px-4 pb-4 space-y-4 border-t border-white/[0.08] pt-3">
                             {/* Regular Slots Section */}
-                            <div>
-                              <div className="flex items-center gap-1.5 mb-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-                                <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Regular Slots</h4>
-                              </div>
-                              {regularSlots.length === 0 ? (
-                                <p className="text-[10px] text-white/25 italic pl-3 mb-2">No regular slots</p>
-                              ) : (
-                                <div className="space-y-2 mb-3">
-                                  {regularSlots.map((slot) => (
-                                    <div key={slot.id}
-                                      className="flex items-center justify-between bg-[#13161e] border border-blue-500/10 rounded-lg px-3 py-2">
-                                      <div className="flex items-center gap-2">
-                                        <Clock className="w-3.5 h-3.5 text-blue-400" />
-                                        <span className="text-xs font-semibold text-white tabular-nums">{slot.startTime}</span>
-                                        <span className="text-white/30 text-xs">→</span>
-                                        <span className="text-xs font-semibold text-[#00d4aa] tabular-nums">{slot.endTime}</span>
-                                        <span className="text-[10px] text-white/20 ml-1">(90 min)</span>
-                                      </div>
-                                      <button
-                                        onClick={() => handleDeleteSlot(slot.id)}
-                                        className="p-1 rounded text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                                        title="Remove slot"
-                                      >
-                                        <Trash className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  ))}
+                            {allowedTypes.includes("REGULAR") && (
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                  <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Regular Slots</h4>
                                 </div>
-                              )}
-                            </div>
+                                {regularSlots.length === 0 ? (
+                                  <p className="text-[10px] text-white/25 italic pl-3 mb-2">No regular slots</p>
+                                ) : (
+                                  <div className="space-y-2 mb-3">
+                                    {regularSlots.map((slot) => (
+                                      <div key={slot.id}
+                                        className="flex items-center justify-between bg-[#13161e] border border-blue-500/10 rounded-lg px-3 py-2">
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="w-3.5 h-3.5 text-blue-400" />
+                                          <span className="text-xs font-semibold text-white tabular-nums">{slot.startTime}</span>
+                                          <span className="text-white/30 text-xs">→</span>
+                                          <span className="text-xs font-semibold text-[#00d4aa] tabular-nums">{slot.endTime}</span>
+                                          <span className="text-[10px] text-white/20 ml-1">(90 min)</span>
+                                        </div>
+                                        <button
+                                          onClick={() => handleDeleteSlot(slot.id)}
+                                          className="p-1 rounded text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                          title="Remove slot"
+                                        >
+                                          <Trash className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             {/* Demo Slots Section */}
-                            <div>
-                              <div className="flex items-center gap-1.5 mb-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Demo Slots</h4>
-                              </div>
-                              {demoSlots.length === 0 ? (
-                                <p className="text-[10px] text-white/25 italic pl-3 mb-2">No demo slots</p>
-                              ) : (
-                                <div className="space-y-2 mb-3">
-                                  {demoSlots.map((slot) => (
-                                    <div key={slot.id}
-                                      className="flex items-center justify-between bg-[#13161e] border border-amber-500/10 rounded-lg px-3 py-2">
-                                      <div className="flex items-center gap-2">
-                                        <Clock className="w-3.5 h-3.5 text-amber-400" />
-                                        <span className="text-xs font-semibold text-white tabular-nums">{slot.startTime}</span>
-                                        <span className="text-white/30 text-xs">→</span>
-                                        <span className="text-xs font-semibold text-[#00d4aa] tabular-nums">{slot.endTime}</span>
-                                        <span className="text-[10px] text-white/20 ml-1">(90 min)</span>
-                                      </div>
-                                      <button
-                                        onClick={() => handleDeleteSlot(slot.id)}
-                                        className="p-1 rounded text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                                        title="Remove slot"
-                                      >
-                                        <Trash className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
-                                  ))}
+                            {allowedTypes.includes("DEMO") && (
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-2">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                  <h4 className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Demo Slots</h4>
                                 </div>
-                              )}
-                            </div>
+                                {demoSlots.length === 0 ? (
+                                  <p className="text-[10px] text-white/25 italic pl-3 mb-2">No demo slots</p>
+                                ) : (
+                                  <div className="space-y-2 mb-3">
+                                    {demoSlots.map((slot) => (
+                                      <div key={slot.id}
+                                        className="flex items-center justify-between bg-[#13161e] border border-amber-500/10 rounded-lg px-3 py-2">
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                          <span className="text-xs font-semibold text-white tabular-nums">{slot.startTime}</span>
+                                          <span className="text-white/30 text-xs">→</span>
+                                          <span className="text-xs font-semibold text-[#00d4aa] tabular-nums">{slot.endTime}</span>
+                                          <span className="text-[10px] text-white/20 ml-1">(90 min)</span>
+                                        </div>
+                                        <button
+                                          onClick={() => handleDeleteSlot(slot.id)}
+                                          className="p-1 rounded text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                                          title="Remove slot"
+                                        >
+                                          <Trash className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             {/* Copy to other days */}
                             {daySlots.length > 0 && (
@@ -1203,33 +1214,35 @@ export default function MentorsPage() {
                               <p className="text-[10px] text-white/40 uppercase tracking-wider font-semibold mb-2.5">
                                 Add Time Slot
                               </p>
-                              <div className="mb-3 flex items-center gap-4">
-                                <label className="text-[10px] text-white/40 font-medium">Slot Type:</label>
-                                <div className="flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSlotTypes((prev) => ({ ...prev, [dayIdx]: 'REGULAR' }))}
-                                    className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${
-                                      (slotTypes[dayIdx] || 'REGULAR') === 'REGULAR'
-                                        ? 'bg-[#3b82f6]/10 border-[#3b82f6]/30 text-[#60a5fa]'
-                                        : 'bg-white/[0.02] border-white/[0.08] text-white/40 hover:text-white/70'
-                                    }`}
-                                  >
-                                    Regular
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setSlotTypes((prev) => ({ ...prev, [dayIdx]: 'DEMO' }))}
-                                    className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${
-                                      (slotTypes[dayIdx] || 'REGULAR') === 'DEMO'
-                                        ? 'bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#fbbf24]'
-                                        : 'bg-white/[0.02] border-white/[0.08] text-white/40 hover:text-white/70'
-                                    }`}
-                                  >
-                                    Demo
-                                  </button>
+                              {allowedTypes.includes("REGULAR") && allowedTypes.includes("DEMO") && (
+                                <div className="mb-3 flex items-center gap-4">
+                                  <label className="text-[10px] text-white/40 font-medium">Slot Type:</label>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSlotTypes((prev) => ({ ...prev, [dayIdx]: 'REGULAR' }))}
+                                      className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                                        (slotTypes[dayIdx] || 'REGULAR') === 'REGULAR'
+                                          ? 'bg-[#3b82f6]/10 border-[#3b82f6]/30 text-[#60a5fa]'
+                                          : 'bg-white/[0.02] border-white/[0.08] text-white/40 hover:text-white/70'
+                                      }`}
+                                    >
+                                      Regular
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSlotTypes((prev) => ({ ...prev, [dayIdx]: 'DEMO' }))}
+                                      className={`px-3 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                                        (slotTypes[dayIdx] || 'REGULAR') === 'DEMO'
+                                          ? 'bg-[#f59e0b]/10 border-[#f59e0b]/30 text-[#fbbf24]'
+                                          : 'bg-white/[0.02] border-white/[0.08] text-white/40 hover:text-white/70'
+                                      }`}
+                                    >
+                                      Demo
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
+                              )}
                               <div className="flex items-end gap-2">
                                 <div className="flex-1">
                                   <label className="block text-[10px] text-white/40 mb-1">Start Time</label>

@@ -223,6 +223,7 @@ export default function CoursesPage() {
         if (response.status === 401) {
           localStorage.removeItem("user");
           localStorage.removeItem("tokens");
+          setLoading(false);
           router.push("/login");
           return;
         }

@@ -30,6 +30,9 @@ interface ParentAccount {
   profiles: ParentProfile[];
   students: Student[];
   programId?: string | null;
+  paymentApproved?: boolean;
+  selectedPlanType?: string | null;
+  paidInstallmentIds?: string[];
 }
 
 export default function ParentDashboard() {
@@ -502,6 +505,28 @@ export default function ParentDashboard() {
         // Filter sessions that belong to this program
         const programSessions = sessions.filter(s => s.programId === activeProgram.id);
 
+        // Payment-aware session gating
+        const paymentApproved = (parentData as any).paymentApproved;
+        const selectedPlanType = (parentData as any).selectedPlanType;
+        const paidInstallmentIds: string[] = (parentData as any).paidInstallmentIds || [];
+
+        // Determine which sessions are unlocked
+        const isUnlocked = (sess: any): boolean => {
+          // Full pay approved: all unlocked
+          if (paymentApproved) return true;
+          // Installment: unlocked if session's installmentId is in paidInstallmentIds
+          if (selectedPlanType === "INSTALLMENT") {
+            if (!sess.installmentId) return true; // not gated to an installment
+            return paidInstallmentIds.includes(sess.installmentId);
+          }
+          // No payment at all: all locked
+          return false;
+        };
+
+        const unlockedSessions = programSessions.filter(isUnlocked);
+        const lockedSessions = programSessions.filter(s => !isUnlocked(s));
+        const hasAnyPayment = paymentApproved || (selectedPlanType === "INSTALLMENT" && paidInstallmentIds.length > 0);
+
         return (
           <div className="mt-8 bg-[#161b27] border border-white/[0.07] rounded-3xl p-6 shadow-xl space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/[0.05] pb-4 gap-4">
@@ -525,39 +550,70 @@ export default function ParentDashboard() {
               </p>
             )}
 
+            {/* Payment status banner */}
+            {!paymentApproved && (
+              <div className={`flex items-center gap-2 p-3 rounded-xl border text-xs ${
+                hasAnyPayment
+                  ? "bg-amber-500/[0.06] border-amber-500/20 text-amber-400"
+                  : "bg-red-500/[0.06] border-red-500/20 text-red-400"
+              }`}>
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                {hasAnyPayment
+                  ? `Installment plan active — ${unlockedSessions.length} of ${programSessions.length} sessions unlocked. Pay more installments to unlock the rest.`
+                  : "Payment not approved yet. All sessions are locked. Please contact admin or finance team."}
+              </div>
+            )}
+
             <div>
-              <h3 className="text-xs font-bold text-white/30 uppercase tracking-wider mb-4">Ecosystem Curriculum ({programSessions.length} sessions)</h3>
+              <h3 className="text-xs font-bold text-white/30 uppercase tracking-wider mb-4">
+                Curriculum ({unlockedSessions.length}/{programSessions.length} sessions unlocked)
+              </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {programSessions.sort((a, b) => a.order - b.order).map(sess => (
-                  <div key={sess.id} className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4 flex flex-col justify-between">
-                    <div>
-                      <div className="w-6 h-6 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-[10px] font-bold text-white/40 mb-3">
-                        {sess.order}
+                {programSessions.sort((a, b) => a.order - b.order).map(sess => {
+                  const unlocked = isUnlocked(sess);
+                  return (
+                    <div key={sess.id} className={`relative bg-white/[0.02] border rounded-2xl p-4 flex flex-col justify-between transition-all ${
+                      unlocked
+                        ? "border-white/[0.05]"
+                        : "border-white/[0.03] opacity-50"
+                    }`}>
+                      {!unlocked && (
+                        <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-white/[0.05] border border-white/10 flex items-center justify-center">
+                          <span className="text-[9px]">🔒</span>
+                        </div>
+                      )}
+                      <div>
+                        <div className="w-6 h-6 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center text-[10px] font-bold text-white/40 mb-3">
+                          {sess.order}
+                        </div>
+                        <h4 className={`text-xs font-bold mb-1 line-clamp-1 ${unlocked ? "text-white" : "text-white/40"}`}>{sess.title}</h4>
+                        <p className="text-[10px] text-white/30">{sess.durationMin} min duration</p>
+                        {!unlocked && (
+                          <p className="text-[9px] text-amber-400/60 mt-1 font-medium">Locked — pay next installment</p>
+                        )}
                       </div>
-                      <h4 className="text-xs font-bold text-white mb-1 line-clamp-1">{sess.title}</h4>
-                      <p className="text-[10px] text-white/30">{sess.durationMin} min duration</p>
-                    </div>
-                    
-                    {/* Direct resource links for quick access */}
-                    <div className="flex gap-2 mt-4 pt-3 border-t border-white/[0.03]">
-                      {sess.slidesUrl && (
-                        <a href={sess.slidesUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-400 hover:underline">
-                          Slides
-                        </a>
-                      )}
-                      {sess.guideUrl && (
-                        <a href={sess.guideUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-teal-400 hover:underline">
-                          Guide
-                        </a>
-                      )}
-                      {sess.worksheetUrl && (
-                        <a href={sess.worksheetUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-purple-400 hover:underline">
-                          Worksheet
-                        </a>
+                      {unlocked && (
+                        <div className="flex gap-2 mt-4 pt-3 border-t border-white/[0.03]">
+                          {sess.slidesUrl && (
+                            <a href={sess.slidesUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-amber-400 hover:underline">
+                              Slides
+                            </a>
+                          )}
+                          {sess.guideUrl && (
+                            <a href={sess.guideUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-teal-400 hover:underline">
+                              Guide
+                            </a>
+                          )}
+                          {sess.worksheetUrl && (
+                            <a href={sess.worksheetUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-purple-400 hover:underline">
+                              Worksheet
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Calendar, Clock, Plus, Search, Loader2, AlertCircle, Trash2,
-  AlertTriangle, Sparkles, X, User, RefreshCw, ChevronLeft, ChevronRight
+  AlertTriangle, Sparkles, X, User, RefreshCw, ChevronLeft, ChevronRight,
+  ChevronDown, Layers
 } from "lucide-react";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Toast } from "@/components/ui/toast";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { CustomSelect } from "@/components/ui/custom-select";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +24,8 @@ interface Student {
     email: string;
     programId?: string | null;
     paymentApproved?: boolean;
+    selectedPlanType?: string | null;
+    paidInstallmentIds?: string[];
   } | null;
 }
 
@@ -36,6 +40,7 @@ interface Session {
   programId: string;
   durationMin: number;
   order: number;
+  installmentId?: string | null;
 }
 
 interface MentorSchedule {
@@ -99,6 +104,7 @@ interface ScheduledClass {
   classType?: string;
   leadId?: string | null;
   meetingLink?: string | null;
+  createdAt: string;
 }
 
 export default function SchedulerPage() {
@@ -144,7 +150,14 @@ export default function SchedulerPage() {
 
   const [showSlotPicker, setShowSlotPicker] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [expandedPrograms, setExpandedPrograms] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [now, setNow] = useState<number>(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 10000);
+    return () => clearInterval(interval);
+  }, []);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -226,8 +239,22 @@ export default function SchedulerPage() {
 
   // ── Helpers & Filtering ────────────────────────────────────────────────────
 
-  // Get active sessions for the selected program
-  const activeSessions = sessions.filter((s) => s.programId === selectedProgramId);
+  // Determine which sessions are unlocked for the selected student based on payment plan
+  const selectedStudent = students.find((s) => s.id === selectedStudentId);
+  const selectedStudentParent = selectedStudent?.parentAccount;
+  const isInstallmentStudent =
+    selectedStudentParent?.selectedPlanType === "INSTALLMENT" &&
+    !selectedStudentParent?.paymentApproved;
+  const paidInstallmentIds = selectedStudentParent?.paidInstallmentIds ?? [];
+
+  // Get active sessions for the selected program — filtered by unlocked installments for installment students
+  const activeSessions = sessions
+    .filter((s) => s.programId === selectedProgramId)
+    .filter((s) => {
+      if (!isInstallmentStudent) return true; // Full pay / approved → all sessions
+      if (!s.installmentId) return true; // Sessions not linked to any installment → always accessible
+      return paidInstallmentIds.includes(s.installmentId); // Only unlocked installments
+    });
 
   // Slot Grid Helper functions
   const goToPrevWeek = () => {
@@ -698,191 +725,250 @@ export default function SchedulerPage() {
 
       {activeTab === "REGULAR" ? (
         (() => {
-          // Group the filtered schedules by student & program (for REGULAR classes only)
           const regularFiltered = filteredSchedules.filter((c) => c.classType === "REGULAR" || !c.classType);
 
-          const groupedMap = new Map<string, {
-            id: string;
-            studentId: string;
-            student: {
-              firstName: string;
-              lastName: string;
-              email: string;
-            };
+          interface GroupedProgram {
             programId: string;
             programTitle: string;
-            mentorId: string;
-            mentorName: string;
-            mentorEmail: string;
+            createdAt: string;
             classes: ScheduledClass[];
-          }>();
+          }
+
+          const groupedMap = new Map<
+            string,
+            {
+              id: string;
+              studentId: string;
+              student: Student;
+              programs: GroupedProgram[];
+            }
+          >();
 
           regularFiltered.forEach((c) => {
             if (!c.student) return;
-            const groupKey = `${c.studentId}-${c.programId}`;
-            const program = programs.find((p) => p.id === c.programId);
-            const programTitle = program?.title || "Unknown Program";
-
-            if (!groupedMap.has(groupKey)) {
-              groupedMap.set(groupKey, {
-                id: groupKey,
-                studentId: c.studentId || "",
-                student: c.student,
-                programId: c.programId,
-                programTitle,
-                mentorId: c.mentorId,
-                mentorName: `${c.mentor.firstName} ${c.mentor.lastName}`,
-                mentorEmail: c.mentor.email,
-                classes: [],
+            
+            const studentId = c.studentId || "";
+            if (!groupedMap.has(studentId)) {
+              groupedMap.set(studentId, {
+                id: studentId,
+                studentId,
+                student: {
+                  id: studentId,
+                  firstName: c.student.firstName,
+                  lastName: c.student.lastName,
+                  email: c.student.email,
+                },
+                programs: [],
               });
             }
-            groupedMap.get(groupKey)!.classes.push(c);
+
+            const studentGroup = groupedMap.get(studentId)!;
+            const cTime = new Date(c.createdAt).getTime();
+
+            let progGroup = studentGroup.programs.find((p) => {
+              if (p.programId === c.programId) {
+                const groupTime = new Date(p.createdAt).getTime();
+                return Math.abs(cTime - groupTime) < 15000; // 15 seconds tolerance for transaction batching
+              }
+              return false;
+            });
+
+            if (!progGroup) {
+              const program = programs.find((p) => p.id === c.programId);
+              const programTitle = program?.title || "Unknown Program";
+              progGroup = {
+                programId: c.programId,
+                programTitle,
+                createdAt: c.createdAt,
+                classes: [],
+              };
+              studentGroup.programs.push(progGroup);
+            }
+            progGroup.classes.push(c);
           });
 
           const groupedData = Array.from(groupedMap.values());
           
-          // Sort each group's classes chronologically by startTime
+          // Sort programs by title, and sort each program's classes chronologically by startTime
           groupedData.forEach((g) => {
-            g.classes.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            g.programs.sort((a, b) => a.programTitle.localeCompare(b.programTitle));
+            g.programs.forEach((p) => {
+              p.classes.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+            });
           });
 
           const columns: DataTableColumn<typeof groupedData[number]>[] = [
             {
               key: "student",
               header: "Student",
+              cellClassName: "align-top min-w-[200px] py-4",
               cell: (g) => (
                 <div className="py-1">
                   <div className="font-semibold text-white text-xs">
                     {g.student.firstName} {g.student.lastName}
                   </div>
-                  <div className="text-[10px] text-white/30 font-medium">{g.student.email}</div>
+                  <div className="text-[10px] text-white/30 font-medium mt-1">{g.student.email}</div>
                 </div>
               ),
             },
             {
-              key: "program",
-              header: "Program / Topic",
+              key: "programs",
+              header: "Scheduled Programs & Timelines",
+              cellClassName: "align-top min-w-[550px] py-4",
               cell: (g) => (
-                <div className="py-1">
-                  <div className="font-semibold text-white/80 text-xs">{g.programTitle}</div>
-                  <div className="text-[10px] text-white/40 mt-0.5 font-medium">
-                    Total Sessions Scheduled: {g.classes.length}
-                  </div>
-                </div>
-              ),
-            },
-            {
-              key: "mentor",
-              header: "Assigned Mentor",
-              cell: (g) => (
-                <div className="py-1">
-                  <div className="font-semibold text-white/80 text-xs">{g.mentorName}</div>
-                  <div className="text-[10px] text-white/30 font-medium">{g.mentorEmail}</div>
-                </div>
-              ),
-            },
-            {
-              key: "sessions",
-              header: "Sessions Timeline",
-              cellClassName: "align-top min-w-[340px]",
-              cell: (g) => {
-                const isExpanded = !!expandedGroups[g.id];
-                return (
-                  <div className="space-y-2.5">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedGroups((prev) => ({ ...prev, [g.id]: !isExpanded }));
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.06] hover:border-white/[0.12] rounded-lg text-[10px] font-bold text-[#7c5cfc] hover:text-[#6c4be8] transition-all"
-                    >
-                      {isExpanded ? (
-                        <>Hide Class Timeline ({g.classes.length})</>
-                      ) : (
-                        <>Expand Class Timeline ({g.classes.length})</>
-                      )}
-                    </button>
+                <div className="flex flex-col gap-3 py-1 w-full">
+                  {g.programs.map((p, pIdx) => {
+                    const expandKey = `${g.id}-${p.programId}-${p.createdAt}`;
+                    const isExpanded = !!expandedPrograms[expandKey];
 
-                    {isExpanded && (
-                      <div className="border border-white/[0.06] bg-[#13161e] rounded-xl p-3 space-y-2 max-h-[300px] overflow-y-auto w-full transition-all mt-2">
-                        {g.classes.map((c) => {
-                          const session = sessions.find((s) => s.id === c.sessionId);
-                          const classDate = new Date(c.startTime);
+                    // Find all unique mentors in this program schedule
+                    const mentorsList = Array.from(
+                      new Set(p.classes.map((c) => c.mentor ? `${c.mentor.firstName} ${c.mentor.lastName}` : "").filter(Boolean))
+                    );
+                    const mentorsStr = mentorsList.length > 0 ? mentorsList.join(", ") : "Unassigned";
 
-                          return (
-                            <div
-                              key={c.id}
-                              className="flex items-center justify-between gap-3 p-2 bg-white/[0.02] border border-white/[0.04] rounded-xl text-[10px]"
-                            >
-                              <div className="min-w-0 flex-1">
-                                <span className="font-bold text-white/80 block truncate">
-                                  Session {session?.order || "-"}: {session?.title || "Curriculum"}
-                                </span>
-                                <span className="text-white/40 block mt-0.5 font-medium">
-                                  {classDate.toLocaleDateString("en-GB", {
-                                    weekday: "short",
-                                    day: "2-digit",
-                                    month: "short",
-                                  })}{" "}
-                                  @ {classDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {c.meetingLink && (
-                                  <a
-                                    href={c.meetingLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#00d4aa]/10 border border-[#00d4aa]/25 text-[#00d4aa] hover:bg-[#00d4aa]/20 transition-all flex items-center gap-0.5 uppercase tracking-wide"
-                                    title={c.meetingLink}
-                                  >
-                                    🔗 Join
-                                  </a>
-                                )}
-                                <span
-                                  className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
-                                    c.status === "COMPLETED"
-                                      ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                                      : c.status === "CANCELLED"
-                                      ? "bg-red-500/10 border-red-500/20 text-red-400"
-                                      : "bg-blue-500/10 border-blue-500/20 text-blue-400"
-                                  }`}
-                                >
-                                  {c.status}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openRescheduleModal(c);
-                                  }}
-                                  className="p-1 hover:text-[#7c5cfc] text-white/30 transition-colors"
-                                  title="Reschedule Session"
-                                >
-                                  <RefreshCw className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClass(c.id);
-                                  }}
-                                  className="p-1 hover:text-red-400 text-white/20 transition-colors"
-                                  title="Delete Session"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
+                    return (
+                      <div key={pIdx} className="bg-white/[0.015] border border-white/[0.06] rounded-2xl p-4 w-full transition-all">
+                        {/* Card Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-white/[0.04] pb-3.5 mb-3.5">
+                          <div>
+                            <h4 className="text-xs font-bold text-white/95">{p.programTitle}</h4>
+                            <div className="text-[10px] text-white/40 mt-1.5 font-medium flex items-center gap-1.5">
+                              <span>{p.classes.length} session{p.classes.length !== 1 ? "s" : ""} scheduled</span>
+                              <span>•</span>
+                              <span className="text-[#a78bfa]">Mentor: {mentorsStr}</span>
                             </div>
-                          );
-                        })}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedPrograms((prev) => ({ ...prev, [expandKey]: !isExpanded }));
+                            }}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.06] hover:border-white/[0.12] rounded-xl text-[10px] font-bold text-[#7c5cfc] hover:text-[#6c4be8] transition-all self-start sm:self-center"
+                          >
+                            {isExpanded ? "Hide Sessions" : `View Sessions (${p.classes.length})`}
+                          </button>
+                        </div>
+
+                        {/* Card Timeline Body */}
+                        {isExpanded && (
+                          <div className="space-y-2 max-h-[250px] overflow-y-auto w-full transition-all pr-1">
+                            {p.classes.map((c) => {
+                              const session = sessions.find((s) => s.id === c.sessionId);
+                              const classDate = new Date(c.startTime);
+
+                              return (
+                                <div
+                                  key={c.id}
+                                  className="flex items-center justify-between gap-3 p-2 bg-white/[0.02] border border-white/[0.04] rounded-xl text-[10px]"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <span className="font-bold text-white/80 block truncate">
+                                      Session {session?.order || "-"}: {session?.title || "Curriculum"}
+                                    </span>
+                                    <div className="text-white/40 mt-0.5 font-medium flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                      <span>
+                                        {classDate.toLocaleDateString("en-GB", {
+                                          weekday: "short",
+                                          day: "2-digit",
+                                          month: "short",
+                                        })}{" "}
+                                        @ {classDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                      <span className="text-white/20 hidden sm:inline">•</span>
+                                      <span className="text-[#a78bfa] font-semibold">
+                                        Mentor: {c.mentor ? `${c.mentor.firstName} ${c.mentor.lastName}` : "Unassigned"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {c.meetingLink && (() => {
+                                      const startTimeMs = classDate.getTime();
+                                      const endTimeMs = c.endTime ? new Date(c.endTime).getTime() : startTimeMs + 90 * 60 * 1000;
+                                      const thirtyMinsBeforeMs = startTimeMs - 30 * 60 * 1000;
+                                      const canJoin = now >= thirtyMinsBeforeMs && now <= endTimeMs;
+                                      const isTooEarly = now < thirtyMinsBeforeMs;
+
+                                      if (canJoin) {
+                                        return (
+                                          <a
+                                            href={c.meetingLink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#00d4aa]/15 border border-[#00d4aa]/40 text-[#00d4aa] hover:bg-[#00d4aa]/25 transition-all flex items-center gap-0.5 uppercase tracking-wide"
+                                            title={c.meetingLink}
+                                          >
+                                            🔗 Join
+                                          </a>
+                                        );
+                                      } else if (isTooEarly) {
+                                        return (
+                                          <span
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-white/[0.02] border border-white/[0.06] text-white/30 cursor-not-allowed uppercase tracking-wide"
+                                            title="Opens 30 minutes before class"
+                                          >
+                                            ⏰ Early
+                                          </span>
+                                        );
+                                      } else {
+                                        return (
+                                          <span
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-white/[0.01] border border-white/[0.03] text-white/20 cursor-not-allowed uppercase tracking-wide"
+                                            title="Session ended"
+                                          >
+                                            Ended
+                                          </span>
+                                        );
+                                      }
+                                    })()}
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${
+                                        c.status === "COMPLETED"
+                                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                                          : c.status === "CANCELLED"
+                                          ? "bg-red-500/10 border-red-500/20 text-red-400"
+                                          : "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                                      }`}
+                                    >
+                                      {c.status}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openRescheduleModal(c);
+                                      }}
+                                      className="p-1 hover:text-[#7c5cfc] text-white/30 transition-colors"
+                                      title="Reschedule Session"
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteClass(c.id);
+                                      }}
+                                      className="p-1 hover:text-red-400 text-white/20 transition-colors"
+                                      title="Delete Session"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              },
+                    );
+                  })}
+                </div>
+              ),
             },
           ];
 
@@ -1038,6 +1124,63 @@ export default function SchedulerPage() {
                           {classDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} -{" "}
                           {new Date(classDate.getTime() + 90 * 60 * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                         </div>
+                      </div>
+                    );
+                  },
+                },
+                {
+                  key: "meetingLink",
+                  header: "Meeting Link",
+                  cell: (c) => {
+                    if (!c.meetingLink) {
+                      return (
+                        <span className="text-[10px] text-white/20 italic">No Link</span>
+                      );
+                    }
+                    const startTimeMs = new Date(c.startTime).getTime();
+                    const endTimeMs = c.endTime ? new Date(c.endTime).getTime() : startTimeMs + 90 * 60 * 1000;
+                    const thirtyMinsBeforeMs = startTimeMs - 30 * 60 * 1000;
+                    const canJoin = now >= thirtyMinsBeforeMs && now <= endTimeMs;
+                    const isTooEarly = now < thirtyMinsBeforeMs;
+
+                    return (
+                      <div className="flex items-center gap-2">
+                        {canJoin ? (
+                          <a
+                            href={c.meetingLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-2 py-1 rounded bg-[#00d4aa]/15 hover:bg-[#00d4aa]/25 border border-[#00d4aa]/30 hover:border-[#00d4aa]/50 text-[#00d4aa] text-[9px] font-bold tracking-wide transition-all inline-flex items-center gap-1 uppercase"
+                            title={c.meetingLink}
+                          >
+                            🔗 Join
+                          </a>
+                        ) : isTooEarly ? (
+                          <span
+                            className="px-2 py-1 rounded bg-white/[0.02] border border-white/[0.06] text-white/30 text-[9px] font-semibold uppercase tracking-wide cursor-not-allowed"
+                            title="Opens 30 minutes before class"
+                          >
+                            ⏰ Early
+                          </span>
+                        ) : (
+                          <span
+                            className="px-2 py-1 rounded bg-white/[0.01] border border-white/[0.03] text-white/20 text-[9px] font-semibold uppercase tracking-wide cursor-not-allowed"
+                            title="Session ended"
+                          >
+                            Ended
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(c.meetingLink || "");
+                            setToast({ message: "Meeting link copied to clipboard!", type: "success" });
+                          }}
+                          className="px-2 py-1 rounded bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-white/[0.15] text-white/60 hover:text-white text-[9px] font-bold tracking-wide transition-all inline-flex items-center gap-1 uppercase"
+                          title="Copy link to clipboard"
+                        >
+                          📋 Copy
+                        </button>
                       </div>
                     );
                   },
@@ -1306,10 +1449,34 @@ export default function SchedulerPage() {
                     <label className="block text-[10px] text-white/45 font-bold uppercase tracking-wide mb-1.5">
                       Select Student
                     </label>
-                    <select
+                    <CustomSelect
                       value={selectedStudentId}
-                      onChange={(e) => {
-                        const val = e.target.value;
+                      placeholder="-- Choose Student --"
+                      options={students
+                        .filter((s) => {
+                          const pa = s.parentAccount;
+                          if (!pa?.programId) return false;
+                          // Full payment: must be approved
+                          if (pa.selectedPlanType === "FULL") return !!pa.paymentApproved;
+                          // Installment: eligible if at least one installment paid
+                          if (pa.selectedPlanType === "INSTALLMENT") return (pa.paidInstallmentIds?.length ?? 0) > 0;
+                          // Legacy: fallback to paymentApproved flag
+                          return !!pa.paymentApproved;
+                        })
+                        .map((s) => {
+                          const pa = s.parentAccount;
+                          const isInstallment = pa?.selectedPlanType === "INSTALLMENT";
+                          const paidCount = pa?.paidInstallmentIds?.length ?? 0;
+                          const subLabel = isInstallment && !pa?.paymentApproved
+                            ? `${s.email} · ${paidCount} installment${paidCount !== 1 ? "s" : ""} paid`
+                            : s.email;
+                          return {
+                            value: s.id,
+                            label: `${s.firstName} ${s.lastName}`,
+                            subLabel,
+                          };
+                        })}
+                      onChange={(val) => {
                         setSelectedStudentId(val);
                         if (selectedClassType === "REGULAR") {
                           const student = students.find((s) => s.id === val);
@@ -1319,18 +1486,7 @@ export default function SchedulerPage() {
                           setSelectedMentorId("");
                         }
                       }}
-                      required
-                      className="w-full bg-[#13161e] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white focus:border-[#7c5cfc] focus:outline-none"
-                    >
-                      <option value="">-- Choose Student --</option>
-                      {students
-                        .filter((s) => s.parentAccount?.programId && s.parentAccount?.paymentApproved)
-                        .map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.firstName} {s.lastName} ({s.email})
-                          </option>
-                        ))}
-                    </select>
+                    />
                   </div>
                 )
               ) : (
@@ -1368,18 +1524,72 @@ export default function SchedulerPage() {
                     )}
                   </label>
                   {selectedClassType === "DEMO" ? (
-                    <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl px-3.5 py-2 text-xs text-white/50 font-medium">
-                      {programs.find((p) => p.id === selectedProgramId)?.title || "General Interest"}
-                    </div>
+                    !selectedProgramId ? (
+                      <CustomSelect
+                        value={selectedProgramId}
+                        placeholder="-- Select Subject Program --"
+                        options={programs.map((p) => ({
+                          value: p.id,
+                          label: p.title,
+                        }))}
+                        onChange={(val) => {
+                          setSelectedProgramId(val);
+                          setClassDateTime("");
+                          setSelectedMentorId("");
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-between bg-white/[0.02] border border-white/[0.05] rounded-xl px-3.5 py-2 text-xs text-white/50 font-medium">
+                        <span>{programs.find((p) => p.id === selectedProgramId)?.title || "General Interest"}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProgramId("");
+                            setClassDateTime("");
+                            setSelectedMentorId("");
+                          }}
+                          className="text-[10px] text-[#7c5cfc] hover:text-[#6c4be8] font-bold"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    )
                   ) : selectedStudentId ? (
-                    <div className="bg-[#7c5cfc]/10 border border-[#7c5cfc]/20 rounded-xl px-3.5 py-2 text-xs text-[#a78bfa] font-bold flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-[#7c5cfc] animate-pulse" />
-                      {(() => {
-                        const student = students.find((s) => s.id === selectedStudentId);
-                        const prog = programs.find((p) => p.id === student?.parentAccount?.programId);
-                        return prog ? prog.title : "No Program Subscribed";
-                      })()}
-                    </div>
+                    !selectedProgramId ? (
+                      <CustomSelect
+                        value={selectedProgramId}
+                        placeholder="-- Select Subject Program --"
+                        options={programs.map((p) => ({
+                          value: p.id,
+                          label: p.title,
+                        }))}
+                        onChange={(val) => {
+                          setSelectedProgramId(val);
+                          setSelectedSessionId("");
+                          setClassDateTime("");
+                          setSelectedMentorId("");
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-between bg-[#7c5cfc]/10 border border-[#7c5cfc]/20 rounded-xl px-3.5 py-2 text-xs text-[#a78bfa] font-bold">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-[#7c5cfc] animate-pulse" />
+                          <span>{programs.find((p) => p.id === selectedProgramId)?.title || "General Interest"}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProgramId("");
+                            setSelectedSessionId("");
+                            setClassDateTime("");
+                            setSelectedMentorId("");
+                          }}
+                          className="text-[10px] text-[#7c5cfc] hover:text-[#6c4be8] font-bold text-right"
+                        >
+                          Change
+                        </button>
+                      </div>
+                    )
                   ) : (
                     <div className="bg-white/[0.01] border border-dashed border-white/10 rounded-xl px-3.5 py-2 text-xs text-white/30 italic">
                       Please select a student first to load their subscribed program
@@ -1423,26 +1633,23 @@ export default function SchedulerPage() {
                     <label className="block text-[10px] text-white/45 font-bold uppercase tracking-wide mb-1.5 flex items-center justify-between">
                       <span>Change Mentor</span>
                     </label>
-                    <select
+                    <CustomSelect
                       value={selectedMentorId}
-                      onChange={(e) => setSelectedMentorId(e.target.value)}
-                      required
-                      className="w-full bg-[#13161e] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white focus:border-[#7c5cfc] focus:outline-none"
-                    >
-                      <option value="">-- Select Mentor --</option>
-                      {mentors.map((m) => {
+                      placeholder="-- Select Mentor --"
+                      options={mentors.map((m) => {
                         const status = getMentorStatus(m);
                         const tags: string[] = [];
                         if (!status.qualified) tags.push("not qualified");
                         if (!status.available) tags.push("outside availability");
                         const suffix = tags.length > 0 ? ` (${tags.join(" | ")})` : "";
-                        return (
-                          <option key={m.id} value={m.id}>
-                            {m.firstName} {m.lastName}{suffix}
-                          </option>
-                        );
+                        return {
+                          value: m.id,
+                          label: `${m.firstName} ${m.lastName}${suffix}`,
+                          subLabel: m.email,
+                        };
                       })}
-                    </select>
+                      onChange={(val) => setSelectedMentorId(val)}
+                    />
                   </div>
                 </>
               ) : (
@@ -1451,7 +1658,37 @@ export default function SchedulerPage() {
                     Class Schedule & Mentor assignment
                   </label>
                   
+                  {/* Installment unlock status banner */}
+                  {isInstallmentStudent && selectedProgramId && (
+                    <div className="bg-amber-500/[0.06] border border-amber-500/20 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Layers className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                          Installment Plan · {paidInstallmentIds.length} paid
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        {activeSessions.length > 0 ? (
+                          activeSessions.map((s) => (
+                            <div key={s.id} className="flex items-center gap-1.5 text-[10px]">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                              <span className="text-emerald-400 font-medium">
+                                S{s.order}: {s.title}
+                              </span>
+                              <span className="text-white/25 text-[9px]">unlocked</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-[10px] text-amber-400/70 italic">
+                            No sessions unlocked yet. Parent must pay at least one installment.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {!selectedProgramId ? (
+
                     <div className="bg-[#13161e] border border-white/[0.07] rounded-xl px-4 py-3 text-xs text-white/30 text-center italic">
                       Please select a subject program first to view available slots.
                     </div>
@@ -1573,16 +1810,15 @@ export default function SchedulerPage() {
                   <label className="block text-[10px] text-white/45 font-bold uppercase tracking-wide mb-1.5">
                     Class Status
                   </label>
-                  <select
-                    value={classStatus}
-                    onChange={(e) => setClassStatus(e.target.value)}
-                    required
-                    className="w-full bg-[#13161e] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white focus:border-[#7c5cfc] focus:outline-none"
-                  >
-                    <option value="SCHEDULED">Scheduled</option>
-                    <option value="COMPLETED">Completed</option>
-                    <option value="CANCELLED">Cancelled</option>
-                  </select>
+                    <CustomSelect
+                      value={classStatus}
+                      options={[
+                        { value: "SCHEDULED", label: "Scheduled" },
+                        { value: "COMPLETED", label: "Completed" },
+                        { value: "CANCELLED", label: "Cancelled" },
+                      ]}
+                      onChange={(val) => setClassStatus(val)}
+                    />
                 </div>
               )}
 

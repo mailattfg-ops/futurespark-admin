@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Toast } from "@/components/ui/toast";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { CustomSelect } from "@/components/ui/custom-select";
 import {
   ArrowLeft,
   Plus,
@@ -46,6 +47,7 @@ interface PaymentPlan {
     name: string;
     amount: number;
     order: number;
+    sessions?: Session[];
   }[];
 }
 
@@ -67,6 +69,7 @@ function PlanCard({
   icon: Icon,
   existing,
   programId,
+  sessions,
   onSaved,
   onDeleted,
 }: {
@@ -76,14 +79,19 @@ function PlanCard({
   icon: React.ElementType;
   existing: PaymentPlan | undefined;
   programId: string;
+  sessions: Session[];
   onSaved: () => void;
   onDeleted: () => void;
 }) {
   const [enabled, setEnabled] = useState(!!existing);
   const [price, setPrice] = useState(existing?.price?.toString() ?? "");
   const [description, setDescription] = useState(existing?.description ?? "");
-  const [installments, setInstallments] = useState<{ name: string; amount: string }[]>(
-    existing?.installments?.map(inst => ({ name: inst.name, amount: inst.amount.toString() })) || []
+  const [installments, setInstallments] = useState<{ name: string; amount: string; sessionIds: string[] }[]>(
+    existing?.installments?.map(inst => ({
+      name: inst.name,
+      amount: inst.amount.toString(),
+      sessionIds: inst.sessions?.map(s => s.id) || [],
+    })) || []
   );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -96,7 +104,11 @@ function PlanCard({
     setPrice(existing?.price?.toString() ?? "");
     setDescription(existing?.description ?? "");
     setInstallments(
-      existing?.installments?.map(inst => ({ name: inst.name, amount: inst.amount.toString() })) || []
+      existing?.installments?.map(inst => ({
+        name: inst.name,
+        amount: inst.amount.toString(),
+        sessionIds: inst.sessions?.map(s => s.id) || [],
+      })) || []
     );
     setDirty(false);
   }, [existing]);
@@ -139,8 +151,8 @@ function PlanCard({
       setEnabled(true);
       if (type === "INSTALLMENT" && installments.length === 0) {
         setInstallments([
-          { name: "First Installment", amount: "99" },
-          { name: "Second Installment", amount: "99" }
+          { name: "First Installment", amount: "99", sessionIds: [] },
+          { name: "Second Installment", amount: "99", sessionIds: [] }
         ]);
       }
       setDirty(true);
@@ -178,6 +190,7 @@ function PlanCard({
                 name: inst.name.trim(),
                 amount: Number(inst.amount),
                 order: idx + 1,
+                sessionIds: inst.sessionIds || [],
               }))
             : undefined,
         }),
@@ -192,7 +205,7 @@ function PlanCard({
     const nextIndex = installments.length;
     const nameWord = numberWords[nextIndex] ? `${numberWords[nextIndex]} Installment` : `Installment ${nextIndex + 1}`;
     
-    setInstallments([...installments, { name: nameWord, amount: "99" }]);
+    setInstallments([...installments, { name: nameWord, amount: "99", sessionIds: [] }]);
     setDirty(true);
   };
 
@@ -201,9 +214,16 @@ function PlanCard({
     setDirty(true);
   };
 
-  const handleInstallmentChange = (index: number, field: "name" | "amount", value: string) => {
+  const handleInstallmentChange = (
+    index: number,
+    field: "name" | "amount" | "sessionIds",
+    value: string | string[]
+  ) => {
     const next = [...installments];
-    next[index][field] = value;
+    next[index] = {
+      ...next[index],
+      [field]: value
+    } as any;
     setInstallments(next);
     setDirty(true);
   };
@@ -278,41 +298,85 @@ function PlanCard({
                 Installment Entries <span className="text-red-400">*</span>
               </label>
               
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {installments.map((inst, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. First Installment"
-                      value={inst.name}
-                      onChange={e => handleInstallmentChange(index, "name", e.target.value)}
-                      className="flex-1 bg-[#13161e] border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs
-                        text-white focus:outline-none focus:border-[#7c5cfc]"
-                    />
-                    <div className="relative w-28">
-                      <DollarSign className="absolute left-2 top-2 w-3 h-3 text-white/35" />
+                  <div key={index} className="flex flex-col gap-2.5 p-3.5 bg-white/[0.015] border border-white/[0.06] rounded-2xl">
+                    <div className="flex items-center gap-2">
                       <input
-                        type="number"
+                        type="text"
                         required
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={inst.amount}
-                        onChange={e => handleInstallmentChange(index, "amount", e.target.value)}
-                        className="w-full bg-[#13161e] border border-white/[0.08] rounded-xl pl-6 pr-3 py-1.5 text-xs
+                        placeholder="e.g. First Installment"
+                        value={inst.name}
+                        onChange={e => handleInstallmentChange(index, "name", e.target.value)}
+                        className="flex-1 bg-[#13161e] border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs
                           text-white focus:outline-none focus:border-[#7c5cfc]"
                       />
+                      <div className="relative w-28 shrink-0">
+                        <DollarSign className="absolute left-2 top-2.5 w-3 h-3 text-white/35" />
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={inst.amount}
+                          onChange={e => handleInstallmentChange(index, "amount", e.target.value)}
+                          className="w-full bg-[#13161e] border border-white/[0.08] rounded-xl pl-6 pr-3 py-1.5 text-xs
+                            text-white focus:outline-none focus:border-[#7c5cfc]"
+                        />
+                      </div>
+                      {installments.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveInstallmentRow(index)}
+                          className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all shrink-0 flex items-center justify-center h-[32px] w-[32px]"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
-                    {installments.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveInstallmentRow(index)}
-                        className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all shrink-0"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    
+                    <div className="flex flex-col gap-1.5 mt-1">
+                      <span className="text-[10px] text-white/35 font-medium select-none">Unlocks Sessions:</span>
+                      <div className="grid grid-cols-2 gap-2 bg-[#13161e]/40 border border-white/[0.06] rounded-xl p-2.5 max-h-36 overflow-y-auto">
+                        {(sessions || []).map((s) => {
+                          const isChecked = (inst.sessionIds || []).includes(s.id);
+                          const isLinkedElsewhere = installments
+                            .filter((_, idx) => idx !== index)
+                            .some((other) => (other.sessionIds || []).includes(s.id));
+
+                          return (
+                            <label
+                              key={s.id}
+                              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all border text-[10px] font-medium leading-none ${
+                                isChecked
+                                  ? "bg-[#7c5cfc]/10 border-[#7c5cfc]/30 text-white cursor-pointer"
+                                  : isLinkedElsewhere
+                                    ? "border-transparent text-white/10 opacity-30 cursor-not-allowed pointer-events-none"
+                                    : "border-transparent text-white/40 hover:bg-white/[0.02] hover:text-white/60 cursor-pointer"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                disabled={isLinkedElsewhere}
+                                onChange={() => {
+                                  if (isLinkedElsewhere) return;
+                                  const nextSessionIds = isChecked
+                                    ? (inst.sessionIds || []).filter((id) => id !== s.id)
+                                    : [...(inst.sessionIds || []), s.id];
+                                  handleInstallmentChange(index, "sessionIds", nextSessionIds);
+                                }}
+                                className="w-3.5 h-3.5 rounded border-white/20 bg-transparent text-[#7c5cfc] focus:ring-0 focus:ring-offset-0 cursor-pointer disabled:cursor-not-allowed"
+                              />
+                              <span>
+                                S{s.order}: {s.title}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -790,12 +854,21 @@ export default function ProgramDetailPage() {
                   {plan.installments && plan.installments.length > 0 && (
                     <div className="space-y-2 mt-4 pt-4 border-t border-white/[0.05]">
                       <h4 className="text-[10px] font-bold text-white/30 uppercase tracking-wider mb-2">Installment breakdown</h4>
-                      {plan.installments.map((inst: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center text-xs text-white/50 border-b border-white/[0.02] pb-1.5 last:border-b-0 last:pb-0">
-                          <span>{inst.name}</span>
-                          <span className="font-semibold text-white">${inst.amount}</span>
-                        </div>
-                      ))}
+                      {plan.installments.map((inst: any, idx: number) => {
+                        const unlockedSess = inst.sessions || [];
+                        const sessText = unlockedSess.length > 0
+                          ? `Unlocks: ${unlockedSess.map((s: any) => `S${s.order}`).join(", ")}`
+                          : "No sessions linked";
+                        return (
+                          <div key={idx} className="flex justify-between items-start text-xs text-white/50 border-b border-white/[0.02] pb-1.5 last:border-b-0 last:pb-0 gap-4">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-white/80">{inst.name}</span>
+                              <span className="text-[10px] text-white/30">{sessText}</span>
+                            </div>
+                            <span className="font-semibold text-white shrink-0">${inst.amount}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -815,6 +888,7 @@ export default function ProgramDetailPage() {
                 icon={Zap}
                 existing={fullPlan}
                 programId={programId}
+                sessions={program.sessions}
                 onSaved={fetchProgram}
                 onDeleted={fetchProgram}
               />
@@ -825,6 +899,7 @@ export default function ProgramDetailPage() {
                 icon={Layers}
                 existing={installmentPlan}
                 programId={programId}
+                sessions={program.sessions}
                 onSaved={fetchProgram}
                 onDeleted={fetchProgram}
               />

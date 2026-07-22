@@ -17,12 +17,14 @@ export default function AdminLayout({
   useEffect(() => {
     const userStr = localStorage.getItem("user");
     if (!userStr) {
+      setChecking(false);
       router.push("/login");
       return;
     }
 
     const user = JSON.parse(userStr);
     if (user.requiresFtlReset) {
+      setChecking(false);
       router.push("/ftl");
       return;
     }
@@ -45,6 +47,7 @@ export default function AdminLayout({
 
     // Handle dashboard roots redirection
     if (path === "/" || (path === "/dashboard" && targetDashboard !== "/dashboard")) {
+      setChecking(false);
       router.push(targetDashboard);
       return;
     }
@@ -69,6 +72,7 @@ export default function AdminLayout({
       });
 
       if (!isPathAllowed) {
+        setChecking(false);
         router.push(targetDashboard);
         return;
       }
