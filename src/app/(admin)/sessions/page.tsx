@@ -233,7 +233,7 @@ export default function SessionsPage() {
                 <th className="px-6 py-4">Program</th>
                 <th className="px-6 py-4">Duration</th>
                 <th className="px-6 py-4">Assets</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                {/* <th className="px-6 py-4 text-right">Actions</th> */}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.05]">
@@ -265,19 +265,18 @@ export default function SessionsPage() {
                         { icon: FileText, value: sess.guideUrl, color: "teal" },
                         { icon: BookOpen, value: sess.worksheetUrl, color: "purple" },
                       ].map(({ icon: Icon, value, color }, i) => (
-                        <span key={i} className={`p-1.5 rounded border ${
-                          value
-                            ? color === "amber" ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-                              : color === "teal" ? "bg-teal-500/10 border-teal-500/30 text-teal-400"
+                        <span key={i} className={`p-1.5 rounded border ${value
+                          ? color === "amber" ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                            : color === "teal" ? "bg-teal-500/10 border-teal-500/30 text-teal-400"
                               : "bg-[#7c5cfc]/10 border-[#7c5cfc]/30 text-[#a78bfa]"
-                            : "bg-white/[0.02] border-white/[0.06] text-white/20"
-                        }`}>
+                          : "bg-white/[0.02] border-white/[0.06] text-white/20"
+                          }`}>
                           <Icon className="w-3.5 h-3.5" />
                         </span>
                       ))}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  {/* <td className="px-6 py-4 text-right">
                     <button
                       onClick={() => sess.programId ? router.push(`/courses/${sess.programId}`) : undefined}
                       className="px-2.5 py-1.5 rounded-lg border border-white/[0.1] hover:border-[#7c5cfc]/40
@@ -285,7 +284,7 @@ export default function SessionsPage() {
                     >
                       {sess.programId ? "VIEW PROGRAM" : "MANAGE"}
                     </button>
-                  </td>
+                  </td> */}
                 </tr>
               ))}
             </tbody>

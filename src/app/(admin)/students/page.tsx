@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   XCircle,
   BookOpen,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 
@@ -27,6 +29,7 @@ interface ScheduledClass {
   endTime: string;
   status: string;
   programId: string;
+  sessionId?: string;
   mentor: { firstName: string; lastName: string };
 }
 
@@ -58,6 +61,9 @@ export default function StudentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [role, setRole] = useState<string | null>(null);
 
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [expandedSchedules, setExpandedSchedules] = useState<Record<string, boolean>>({});
+
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -80,12 +86,20 @@ export default function StudentsPage() {
     return headers;
   };
 
+  const toggleScheduleExpand = (studentId: string) => {
+    setExpandedSchedules(prev => ({
+      ...prev,
+      [studentId]: !prev[studentId]
+    }));
+  };
+
   const fetchData = async () => {
     try {
       const headers = getHeaders();
-      const [studRes, schedRes] = await Promise.all([
+      const [studRes, schedRes, sessRes] = await Promise.all([
         fetch("/api/users/customers/students", { headers }),
         fetch("/api/schedules", { headers }),
+        fetch("/api/courses/sessions", { headers }),
       ]);
 
       if (studRes.status === 401) {
@@ -95,12 +109,14 @@ export default function StudentsPage() {
 
       const studData = await studRes.json();
       const schedData = await schedRes.json();
+      const sessData = await sessRes.json();
 
       if (!studData.success) {
         throw new Error(studData.message || "Failed to load students directory");
       }
 
       const schedules: ScheduledClass[] = schedData.success ? schedData.data ?? [] : [];
+      setSessions(sessData.success ? sessData.data ?? [] : []);
 
       // Enrich each student with their scheduled classes
       const enriched: StudentItem[] = (studData.data ?? []).map((s: StudentItem) => ({
@@ -205,11 +221,12 @@ export default function StudentsPage() {
       key: "schedule",
       header: "Schedule",
       cell: (s) => {
-        const upcoming = (s.schedules ?? []).filter(
+        const studentSchedules = s.schedules ?? [];
+        const upcoming = studentSchedules.filter(
           (sc) => sc.status === "SCHEDULED" && new Date(sc.startTime) >= new Date()
         );
-        const completed = (s.schedules ?? []).filter((sc) => sc.status === "COMPLETED").length;
-        const total = (s.schedules ?? []).length;
+        const completed = studentSchedules.filter((sc) => sc.status === "COMPLETED").length;
+        const total = studentSchedules.length;
 
         if (total === 0) {
           return (
@@ -223,15 +240,17 @@ export default function StudentsPage() {
           (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
         )[0];
 
+        const isExpanded = !!expandedSchedules[s.id];
+
         return (
-          <div className="space-y-1">
+          <div className="space-y-2 py-1 max-w-[280px]">
             {next && (
-              <div className="flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[9px] text-blue-400 font-bold uppercase">
-                  <Clock className="w-2.5 h-2.5" />
+              <div className="flex items-start gap-1.5">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[8px] text-blue-400 font-bold uppercase tracking-wider shrink-0 mt-0.5">
+                  <Clock className="w-2 h-2" />
                   Upcoming
                 </span>
-                <span className="text-[10px] text-white/60">
+                <span className="text-[10px] text-white/60 leading-tight">
                   {new Date(next.startTime).toLocaleDateString("en-GB", {
                     weekday: "short",
                     day: "2-digit",
@@ -242,7 +261,8 @@ export default function StudentsPage() {
                 </span>
               </div>
             )}
-            <div className="flex items-center gap-2">
+            
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1 text-[10px] text-white/40">
                 <BookOpen className="w-3 h-3 text-white/20" />
                 {total} total
@@ -260,6 +280,67 @@ export default function StudentsPage() {
                 </span>
               )}
             </div>
+
+            <button
+              onClick={() => toggleScheduleExpand(s.id)}
+              className="flex items-center gap-1 text-[10px] font-bold text-[#a78bfa] hover:text-[#7c5cfc] transition-all bg-white/[0.03] border border-white/[0.06] hover:border-[#7c5cfc]/30 px-2 py-0.5 rounded-md"
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronUp className="w-3 h-3" /> Hide Sessions
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-3 h-3" /> View Sessions
+                </>
+              )}
+            </button>
+
+            {isExpanded && (
+              <div className="mt-2 space-y-1.5 pl-1 border-l border-white/[0.06] max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                {studentSchedules
+                  .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
+                  .map((sc) => {
+                    const sessionInfo = sessions.find((sess) => sess.id === sc.sessionId);
+                    const classDate = new Date(sc.startTime);
+                    
+                    return (
+                      <div key={sc.id} className="bg-white/[0.01] border border-white/[0.04] rounded-lg p-2 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold text-white/70 truncate">
+                            {sessionInfo 
+                              ? `S${sessionInfo.order}: ${sessionInfo.title}` 
+                              : "Session Class"
+                            }
+                          </span>
+                          <span className={`text-[8px] font-bold uppercase px-1 rounded border tracking-wider shrink-0 ${
+                            sc.status === "COMPLETED"
+                              ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
+                              : sc.status === "CANCELLED"
+                              ? "bg-red-500/10 border-red-500/25 text-red-400"
+                              : "bg-blue-500/10 border-blue-500/25 text-blue-400"
+                          }`}>
+                            {sc.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[9px] text-white/40">
+                          <span>
+                            {classDate.toLocaleDateString("en-GB", {
+                              day: "2-digit",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            })}
+                          </span>
+                          <span className="text-white/30 truncate max-w-[100px]">
+                            {sc.mentor.firstName} {sc.mentor.lastName}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         );
       },
