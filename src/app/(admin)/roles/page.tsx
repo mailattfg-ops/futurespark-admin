@@ -58,6 +58,7 @@ export default function RolesPage() {
   const [description, setDescription] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [actionLoading, setActionLoading] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
@@ -105,6 +106,7 @@ export default function RolesPage() {
     setRoleName("");
     setDescription("");
     setSelectedPermissions([]);
+    setModalError(null);
     setShowModal(true);
   };
 
@@ -113,6 +115,7 @@ export default function RolesPage() {
     setRoleName(role.name);
     setDescription(role.description || "");
     setSelectedPermissions(role.permissions || []);
+    setModalError(null);
     setShowModal(true);
   };
 
@@ -120,6 +123,7 @@ export default function RolesPage() {
     e.preventDefault();
     setActionLoading(true);
     setError(null);
+    setModalError(null);
 
     try {
       const isEdit = !!editRole;
@@ -143,7 +147,7 @@ export default function RolesPage() {
       setLoading(true);
       fetchRoles();
     } catch (err: any) {
-      setError(err.message);
+      setModalError(err.message);
     } finally {
       setActionLoading(false);
     }
@@ -313,6 +317,16 @@ export default function RolesPage() {
             </p>
 
             <form onSubmit={handleSaveRole} className="flex flex-col gap-4">
+              {modalError && (
+                <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 text-red-400 text-xs animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold block">Failed to save role</span>
+                    <span className="text-[11px] opacity-80">{modalError}</span>
+                  </div>
+                </div>
+              )}
+
               {/* Name (Create only) */}
               <div>
                 <label className="block text-xs text-white/50 mb-1.5 font-medium">Role Identifier Name</label>
