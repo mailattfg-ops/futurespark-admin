@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { Loader2 } from "lucide-react";
@@ -12,7 +12,13 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const [checking, setChecking] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     const userStr = localStorage.getItem("user");
@@ -91,10 +97,17 @@ export default function AdminLayout({
 
   return (
     <div className="flex min-h-screen bg-[#0d1117]">
-      <Sidebar />
-      <div className="flex flex-col flex-1 ml-[130px]">
-        <Header />
-        <main className="flex-1 mt-14 overflow-y-auto dot-grid">
+      {/* Mobile Sidebar Overlay Backdrop */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 z-30 bg-black/60 backdrop-blur-sm md:hidden" 
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      <div className="flex flex-col flex-1 md:ml-[130px] min-w-0">
+        <Header onMenuClick={() => setIsSidebarOpen(true)} />
+        <main className="flex-1 mt-14 overflow-y-auto dot-grid w-full">
           {children}
         </main>
       </div>

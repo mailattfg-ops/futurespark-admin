@@ -33,7 +33,12 @@ interface NavSection {
   items: NavItem[];
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const [role, setRole] = useState("ADMIN");
 
@@ -129,20 +134,18 @@ export function Sidebar() {
           },
         ];
       default:
-        // Admin gets grouped navigation sections
         return [
           {
             title: "Overview",
             items: [
-              { href: "/dashboard",     label: "Dashboard",     icon: LayoutDashboard },
-              { href: "/analytics",     label: "Analytics",     icon: BarChart3 },
+              { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
             ],
           },
           {
-            title: "Academics",
+            title: "Programs",
             items: [
-              { href: "/courses",       label: "Programs",      icon: BookOpen },
-              { href: "/sessions",      label: "Sessions",      icon: Clock },
+              { href: "/courses",   label: "Courses Catalogue", icon: BookOpen },
+              { href: "/sessions",  label: "Academic Sessions", icon: Clock },
             ],
           },
           {
@@ -180,7 +183,19 @@ export function Sidebar() {
   const navSections = getNavSections();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-[130px] flex-col bg-[#13161e] border-r border-white/[0.06]">
+    <aside className={`
+      fixed inset-y-0 left-0 z-40 flex w-[130px] flex-col bg-[#13161e] border-r border-white/[0.06]
+      transition-transform duration-300 ease-in-out md:translate-x-0
+      ${isOpen ? "translate-x-0" : "-translate-x-full"}
+    `}>
+      {/* Mobile Close Button */}
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-3 p-1 rounded-md border border-white/[0.06] bg-white/[0.02] text-white/50 hover:text-white md:hidden"
+      >
+        <Plus className="w-3.5 h-3.5 rotate-45" />
+      </button>
+
       {/* Logo */}
       <div className="flex flex-col items-center gap-1 px-4 py-6 border-b border-white/[0.06]">
         <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#7c5cfc]/20 ring-1 ring-[#7c5cfc]/40">

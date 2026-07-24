@@ -10,9 +10,14 @@ import {
   LogOut,
   ChevronDown,
   User,
+  Menu,
 } from "lucide-react";
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -77,22 +82,33 @@ export function Header() {
     .toUpperCase();
 
   return (
-    <header className="fixed top-0 right-0 left-[130px] z-30 flex items-center justify-between
-      h-14 px-6 bg-[#0d1117]/80 backdrop-blur-md border-b border-white/[0.06]">
+    <header className="fixed top-0 right-0 left-0 md:left-[130px] z-30 flex items-center justify-between
+      h-14 px-4 md:px-6 bg-[#0d1117]/80 backdrop-blur-md border-b border-white/[0.06]">
 
-      {/* Search */}
-      <div className="relative flex items-center">
-        <Search className="absolute left-3 w-3.5 h-3.5 text-white/30 pointer-events-none" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search courses..."
-          className="w-56 bg-white/[0.05] border border-white/[0.08] rounded-lg
-            pl-9 pr-3 py-1.5 text-sm text-white/80 placeholder:text-white/25
-            focus:outline-none focus:border-[#7c5cfc]/50 focus:bg-white/[0.07]
-            transition-all duration-200"
-        />
+      {/* Left section containing burger menu and search */}
+      <div className="flex items-center">
+        {/* Burger Menu for Mobile */}
+        <button
+          onClick={onMenuClick}
+          className="p-1.5 rounded-lg border border-white/[0.08] bg-white/[0.02] text-white/70 hover:text-white hover:bg-white/[0.05] md:hidden mr-3 transition-colors"
+        >
+          <Menu className="w-4 h-4" />
+        </button>
+
+        {/* Search */}
+        <div className="relative flex items-center">
+          <Search className="absolute left-3 w-3.5 h-3.5 text-white/30 pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search courses..."
+            className="w-40 sm:w-56 bg-white/[0.05] border border-white/[0.08] rounded-lg
+              pl-9 pr-3 py-1.5 text-xs sm:text-sm text-white/80 placeholder:text-white/25
+              focus:outline-none focus:border-[#7c5cfc]/50 focus:bg-white/[0.07]
+              transition-all duration-200"
+          />
+        </div>
       </div>
 
       {/* Right Controls */}
