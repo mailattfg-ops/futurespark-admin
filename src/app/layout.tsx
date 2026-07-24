@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "FutureSpark platform administration dashboard",
 };
 
+import FetchInterceptor from "@/components/providers/FetchInterceptor";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,6 +30,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        <FetchInterceptor />
         {children}
       </body>
     </html>
