@@ -270,7 +270,7 @@ export default function StudentsPage() {
               {completed > 0 && (
                 <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400/70">
                   <CheckCircle2 className="w-3 h-3" />
-                  {completed} done
+                  {completed} attended
                 </span>
               )}
               {upcoming.length > 0 && (
@@ -303,6 +303,26 @@ export default function StudentsPage() {
                   .map((sc) => {
                     const sessionInfo = sessions.find((sess) => sess.id === sc.sessionId);
                     const classDate = new Date(sc.startTime);
+
+                    let statusLabel = sc.status;
+                    let badgeColorClass = "bg-blue-500/10 border-blue-500/25 text-blue-400";
+
+                    if (sc.status === "COMPLETED") {
+                      statusLabel = "ATTENDED";
+                      badgeColorClass = "bg-emerald-500/10 border-emerald-500/25 text-emerald-400";
+                    } else if (sc.status === "CANCELLED") {
+                      statusLabel = "SKIPPED";
+                      badgeColorClass = "bg-red-500/10 border-red-500/25 text-red-400";
+                    } else if (sc.status === "SCHEDULED") {
+                      const isPast = new Date(sc.startTime) < new Date();
+                      statusLabel = isPast ? "SKIPPED" : "UPCOMING";
+                      badgeColorClass = isPast 
+                        ? "bg-red-500/10 border-red-500/25 text-red-400"
+                        : "bg-blue-500/10 border-blue-500/25 text-blue-400";
+                    } else if (sc.status === "RESCHEDULE_REQUESTED") {
+                      statusLabel = "RESCHEDULE REQ";
+                      badgeColorClass = "bg-amber-500/10 border-amber-500/25 text-amber-400";
+                    }
                     
                     return (
                       <div key={sc.id} className="bg-white/[0.01] border border-white/[0.04] rounded-lg p-2 space-y-1">
@@ -313,14 +333,8 @@ export default function StudentsPage() {
                               : "Session Class"
                             }
                           </span>
-                          <span className={`text-[8px] font-bold uppercase px-1 rounded border tracking-wider shrink-0 ${
-                            sc.status === "COMPLETED"
-                              ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
-                              : sc.status === "CANCELLED"
-                              ? "bg-red-500/10 border-red-500/25 text-red-400"
-                              : "bg-blue-500/10 border-blue-500/25 text-blue-400"
-                          }`}>
-                            {sc.status}
+                          <span className={`text-[8px] font-bold uppercase px-1 rounded border tracking-wider shrink-0 ${badgeColorClass}`}>
+                            {statusLabel}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-[9px] text-white/40">
