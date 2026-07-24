@@ -196,25 +196,26 @@ export default function RolesPage() {
   };
 
   return (
-    <div className="p-8 w-full">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-2.5">
-            <ShieldAlert className="w-8 h-8 text-[#7c5cfc]" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1 sm:mb-2 flex items-center gap-2.5">
+            <ShieldAlert className="w-7 h-7 sm:w-8 sm:h-8 text-[#7c5cfc]" />
             Roles & Permissions
           </h1>
-          <p className="text-white/45 text-sm max-w-md">
+          <p className="text-white/45 text-xs sm:text-sm max-w-md">
             Define role boundaries, access scopes, and security profiles across staff accounts.
           </p>
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-sm font-semibold transition-all shadow-lg"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-xs sm:text-sm font-semibold transition-all shadow-lg
+            w-full sm:w-auto shrink-0 whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" />
-          CREATE ROLE
+          <Plus className="w-4 h-4 shrink-0" />
+          <span>CREATE ROLE</span>
         </button>
       </div>
 

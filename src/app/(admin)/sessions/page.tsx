@@ -158,23 +158,24 @@ export default function SessionsPage() {
   const nextOrder = sessions.filter(s => s.programId === selectedProgramId).length + 1;
 
   return (
-    <div className="p-8 w-full">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">Curriculum Sessions</h1>
-          <p className="text-white/45 text-sm max-w-md">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1 sm:mb-2">Curriculum Sessions</h1>
+          <p className="text-white/45 text-xs sm:text-sm max-w-md">
             Create, sequence, and assign class sessions to programs from a single cockpit.
           </p>
         </div>
         <button
           onClick={() => { setSessionOrder(sessions.length + 1); setShowModal(true); }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-sm font-semibold transition-all"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-xs sm:text-sm font-semibold transition-all
+            w-full sm:w-auto shrink-0 whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" />
-          CREATE SESSION
+          <Plus className="w-4 h-4 shrink-0" />
+          <span>CREATE SESSION</span>
         </button>
       </div>
 
@@ -186,8 +187,8 @@ export default function SessionsPage() {
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="flex-1 max-w-sm relative">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-6">
+        <div className="w-full sm:flex-1 sm:max-w-sm relative">
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-white/20" />
           <input
             type="text"
@@ -198,12 +199,12 @@ export default function SessionsPage() {
               text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-[#7c5cfc] transition-all"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="w-3.5 h-3.5 text-white/35" />
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <SlidersHorizontal className="w-3.5 h-3.5 text-white/35 shrink-0" />
           <select
             value={selectedProgramFilter}
             onChange={e => setSelectedProgramFilter(e.target.value)}
-            className="bg-[#161b27] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+            className="w-full sm:w-auto bg-[#161b27] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
           >
             <option value="All">All Programs</option>
             <option value="">Unassigned</option>
@@ -225,8 +226,8 @@ export default function SessionsPage() {
           <p className="text-white/25 text-xs mt-1">Create your first class session to begin.</p>
         </div>
       ) : (
-        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
-          <table className="w-full text-left">
+        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-x-auto shadow-xl">
+          <table className="w-full text-left min-w-[650px]">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-bold text-white/35 uppercase tracking-wider">
                 <th className="px-6 py-4">Session</th>

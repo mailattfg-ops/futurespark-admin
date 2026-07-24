@@ -671,7 +671,7 @@ export default function ProgramDetailPage() {
   const installmentPlan = program.paymentPlans.find(p => p.type === "INSTALLMENT");
 
   return (
-    <div className="p-8 max-w-[900px]">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-[900px]">
       {/* Back */}
       <Link href="/courses"
         className="inline-flex items-center gap-2 text-white/40 hover:text-white text-xs font-semibold mb-6 transition-all">
@@ -680,11 +680,11 @@ export default function ProgramDetailPage() {
       </Link>
 
       {/* Program Header */}
-      <div className="mb-8 pb-6 border-b border-white/[0.06] flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="mb-6 sm:mb-8 pb-6 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">{program.title}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-2">{program.title}</h1>
           {program.description && (
-            <p className="text-white/45 text-sm max-w-2xl">{program.description}</p>
+            <p className="text-white/45 text-xs sm:text-sm max-w-2xl">{program.description}</p>
           )}
         </div>
 

@@ -119,13 +119,13 @@ export default function StudentDashboard() {
   const accessibleSchedules = schedules.filter(c => isSessionUnlocked(c.sessionId));
 
   return (
-    <div className="p-8 w-full max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
-          <Calendar className="w-8 h-8 text-[#7c5cfc]" /> My Learning Schedule
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+          <Calendar className="w-7 h-7 sm:w-8 sm:h-8 text-[#7c5cfc]" /> My Learning Schedule
         </h1>
-        <p className="text-white/45 text-sm mt-1">
+        <p className="text-white/45 text-xs sm:text-sm mt-1">
           View your upcoming learning classes, topic files, and assigned mentors.
         </p>
       </div>

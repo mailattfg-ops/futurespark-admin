@@ -528,26 +528,27 @@ export default function MentorsPage() {
   })();
 
   return (
-    <div className="p-8 w-full">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
       {/* Page Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-2.5">
-            <GraduationCap className="w-8 h-8 text-[#7c5cfc]" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1 sm:mb-2 flex items-center gap-2.5">
+            <GraduationCap className="w-7 h-7 sm:w-8 sm:h-8 text-[#7c5cfc]" />
             Mentors & Teachers
           </h1>
-          <p className="text-white/45 text-sm max-w-md">
+          <p className="text-white/45 text-xs sm:text-sm max-w-md">
             Manage mentor accounts, qualifications, and weekly availability schedules.
           </p>
         </div>
         {!isReadOnly && (
           <button
             onClick={openProvisionModal}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-              bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-sm font-semibold transition-all shadow-lg shadow-[#7c5cfc]/20"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+              bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-xs sm:text-sm font-semibold transition-all shadow-lg shadow-[#7c5cfc]/20
+              w-full sm:w-auto shrink-0 whitespace-nowrap"
           >
-            <Plus className="w-4 h-4" />
-            ADD MENTOR
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>ADD MENTOR</span>
           </button>
         )}
       </div>
@@ -561,8 +562,8 @@ export default function MentorsPage() {
       )}
 
       {/* Search and Filters */}
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="w-full max-w-sm relative">
+      <div className="mb-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div className="w-full sm:max-w-sm relative">
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-white/20" />
           <input
             type="text"
@@ -575,7 +576,7 @@ export default function MentorsPage() {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex bg-[#161b27] border border-white/[0.07] p-1 rounded-xl gap-1">
+        <div className="flex bg-[#161b27] border border-white/[0.07] p-1 rounded-xl gap-1 w-full sm:w-auto justify-center">
           {[
             { id: "ALL", label: "All Mentors" },
             { id: "REGULAR", label: "Regular" },
@@ -584,7 +585,7 @@ export default function MentorsPage() {
             <button
               key={tab.id}
               onClick={() => setTypeFilter(tab.id)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex-1 sm:flex-initial text-center
                 ${typeFilter === tab.id
                   ? "bg-[#7c5cfc] text-white shadow-md shadow-[#7c5cfc]/10"
                   : "text-white/45 hover:text-white/75 hover:bg-white/[0.02]"
@@ -609,8 +610,8 @@ export default function MentorsPage() {
           <p className="text-white/25 text-xs mt-1">Start by adding your first mentor account.</p>
         </div>
       ) : (
-        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
-          <table className="w-full text-left">
+        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-x-auto shadow-xl">
+          <table className="w-full text-left min-w-[650px]">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-bold text-white/35 uppercase tracking-wider">
                 <th className="px-6 py-4">Mentor</th>

@@ -613,15 +613,15 @@ export default function CustomersPage() {
   });
 
   return (
-    <div className="p-8 w-full animate-fadeIn">
+    <div className="p-4 sm:p-6 md:p-8 w-full animate-fadeIn">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-3">
-            <Users className="w-8 h-8 text-[#7c5cfc]" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1 sm:mb-2 flex items-center gap-3">
+            <Users className="w-7 h-7 sm:w-8 sm:h-8 text-[#7c5cfc]" />
             Parents Section
           </h1>
-          <p className="text-white/45 text-sm max-w-xl">
+          <p className="text-white/45 text-xs sm:text-sm max-w-xl">
             Provision shared parent credentials, configure up to 2 profiles per parent ID, and link independent student portals.
           </p>
         </div>
@@ -629,10 +629,11 @@ export default function CustomersPage() {
           <button
             onClick={() => setParentModalOpen(true)}
             className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
-              bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-xs font-bold transition-all shadow-lg active:scale-95"
+              bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-xs font-bold transition-all shadow-lg active:scale-95
+              w-full sm:w-auto shrink-0 whitespace-nowrap"
           >
-            <UserPlus className="w-4 h-4" />
-            NEW PARENT ACCOUNT
+            <UserPlus className="w-4 h-4 shrink-0" />
+            <span>NEW PARENT ACCOUNT</span>
           </button>
         )}
       </div>
@@ -646,7 +647,7 @@ export default function CustomersPage() {
 
       {/* Filters bar */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6 items-center justify-between">
-        <div className="relative w-full max-w-sm">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-white/20" />
           <input
             type="text"

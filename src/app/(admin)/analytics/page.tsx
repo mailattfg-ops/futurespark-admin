@@ -22,15 +22,15 @@ const topCourses = [
 
 export default function AnalyticsPage() {
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Analytics</h1>
-        <p className="text-white/40 text-sm">Platform performance overview — last 30 days</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1">Analytics</h1>
+        <p className="text-white/40 text-xs sm:text-sm">Platform performance overview — last 30 days</p>
       </div>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {metrics.map(m => (
           <div key={m.label}
             className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-5

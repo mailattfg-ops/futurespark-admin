@@ -797,22 +797,24 @@ export default function SchedulerPage() {
   }
 
   return (
-    <div className="p-8 w-full max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
-            <Calendar className="w-8 h-8 text-[#7c5cfc]" /> Scheduling Engine
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+            <Calendar className="w-7 h-7 sm:w-8 sm:h-8 text-[#7c5cfc]" /> Scheduling Engine
           </h1>
-          <p className="text-white/45 text-sm mt-1">
+          <p className="text-white/45 text-xs sm:text-sm mt-1">
             Map qualified mentors to student learning sessions and resolve calendar conflicts.
           </p>
         </div>
         <button
           onClick={openScheduleModal}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#7c5cfc] hover:bg-[#6c4be8] text-white text-xs font-bold transition-all shadow-lg hover:shadow-[#7c5cfc]/20"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#7c5cfc] hover:bg-[#6c4be8] text-white text-xs font-bold transition-all shadow-lg hover:shadow-[#7c5cfc]/20
+            w-full sm:w-auto shrink-0 whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" /> Schedule A Class
+          <Plus className="w-4 h-4 shrink-0" />
+          <span>Schedule A Class</span>
         </button>
       </div>
 

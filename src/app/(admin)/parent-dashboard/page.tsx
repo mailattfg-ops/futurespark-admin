@@ -345,9 +345,9 @@ export default function ParentDashboard() {
   const now = new Date();
 
   return (
-    <div className="p-8 w-full max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
       {/* Page Header */}
-      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
             <Calendar className="w-8 h-8 text-[#7c5cfc]" /> Children's Learning Schedule
