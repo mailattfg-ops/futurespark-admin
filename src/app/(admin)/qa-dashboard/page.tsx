@@ -19,17 +19,17 @@ export default function QADashboard() {
   }, []);
 
   return (
-    <div className="p-8 w-full">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-teal-500/10 to-blue-500/10 border border-white/[0.08] rounded-3xl p-8 mb-8 shadow-2xl">
+      <div className="relative overflow-hidden bg-gradient-to-r from-teal-500/10 to-blue-500/10 border border-white/[0.08] rounded-2xl sm:rounded-3xl p-5 sm:p-8 mb-6 sm:mb-8 shadow-2xl">
         <div className="relative z-10">
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-500/10 text-teal-400 text-[10px] font-bold uppercase tracking-wider mb-3 border border-teal-500/20">
             <ShieldCheck className="w-3.5 h-3.5" /> Staff Role: QA Auditor
           </span>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             Quality Assurance Center
           </h1>
-          <p className="text-white/45 text-sm mt-1">Audit Logged in as: {userName} ({userEmail})</p>
+          <p className="text-white/45 text-xs sm:text-sm mt-1">Audit Logged in as: {userName} ({userEmail})</p>
         </div>
       </div>
 

@@ -322,25 +322,26 @@ export default function StaffPage() {
   });
 
   return (
-    <div className="p-8 w-full">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-2.5">
-            <UserCheck className="w-8 h-8 text-[#7c5cfc]" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1 sm:mb-2 flex items-center gap-2.5">
+            <UserCheck className="w-7 h-7 sm:w-8 sm:h-8 text-[#7c5cfc]" />
             Staff Provisioning
           </h1>
-          <p className="text-white/45 text-sm max-w-md">
+          <p className="text-white/45 text-xs sm:text-sm max-w-md">
             Manage system administrators, teachers, auditors, schedulers, and compliance officers.
           </p>
         </div>
         <button
           onClick={openProvisionModal}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-sm font-semibold transition-all shadow-lg shadow-[#7c5cfc]/20"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-xs sm:text-sm font-semibold transition-all shadow-lg shadow-[#7c5cfc]/20
+            w-full sm:w-auto shrink-0 whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" />
-          PROVISION STAFF
+          <Plus className="w-4 h-4 shrink-0" />
+          <span>PROVISION STAFF</span>
         </button>
       </div>
 
@@ -352,7 +353,7 @@ export default function StaffPage() {
       )}
 
       {/* Search */}
-      <div className="mb-6 max-w-sm relative">
+      <div className="mb-6 w-full sm:max-w-sm relative">
         <Search className="absolute left-3.5 top-3 w-4 h-4 text-white/20" />
         <input
           type="text"
@@ -377,8 +378,8 @@ export default function StaffPage() {
           <p className="text-white/25 text-xs mt-1">Start by provisioning your first helper account.</p>
         </div>
       ) : (
-        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
-          <table className="w-full text-left">
+        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-x-auto shadow-xl">
+          <table className="w-full text-left min-w-[650px]">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-bold text-white/35 uppercase tracking-wider">
                 <th className="px-6 py-4">Staff Member</th>

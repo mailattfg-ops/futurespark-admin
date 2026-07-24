@@ -246,15 +246,15 @@ export default function CoursesPage() {
   }, []);
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
 
       {/* Page Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1 sm:mb-2">
             Course Catalog
           </h1>
-          <p className="text-white/45 text-sm max-w-md">
+          <p className="text-white/45 text-xs sm:text-sm max-w-md">
             Curate and manage your curriculum with architectural precision.
             Control every aspect of the learning journey from a single point of truth.
           </p>
@@ -262,46 +262,46 @@ export default function CoursesPage() {
         {role !== "PARENT" && (
           <Link
             href="/courses/new"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
               border border-white/[0.12] bg-white/[0.04] hover:bg-white/[0.07]
-              text-white/70 hover:text-white text-sm font-medium
-              transition-all duration-200 group whitespace-nowrap"
+              text-white/70 hover:text-white text-xs sm:text-sm font-medium
+              transition-all duration-200 group whitespace-nowrap w-full sm:w-auto shrink-0"
           >
-            ADD NEW PROGRAM
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+            <span>ADD NEW PROGRAM</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform shrink-0" />
           </Link>
         )}
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
 
         {/* Published Courses */}
-        <div className="col-span-2 bg-[#161b27] border border-white/[0.07] rounded-2xl p-6">
+        <div className="col-span-1 lg:col-span-2 bg-[#161b27] border border-white/[0.07] rounded-2xl p-4 sm:p-6">
           <p className="text-[11px] text-[#00d4aa] font-semibold uppercase tracking-widest mb-3">
             Active Ecosystem
           </p>
-          <p className="text-4xl font-bold text-white mb-5">{courses.length} Published Programs</p>
-          <div className="flex gap-8">
+          <p className="text-2xl sm:text-4xl font-bold text-white mb-4 sm:mb-5">{courses.length} Published Programs</p>
+          <div className="flex gap-6 sm:gap-8">
             <div>
-              <p className="text-2xl font-bold text-white">12.4k</p>
-              <p className="text-[11px] text-white/35 uppercase tracking-wider mt-0.5">Active Enrollments</p>
+              <p className="text-xl sm:text-2xl font-bold text-white">12.4k</p>
+              <p className="text-[10px] sm:text-[11px] text-white/35 uppercase tracking-wider mt-0.5">Active Enrollments</p>
             </div>
             <div>
-              <p className="text-2xl font-bold text-white">94%</p>
-              <p className="text-[11px] text-white/35 uppercase tracking-wider mt-0.5">Completion Rate</p>
+              <p className="text-xl sm:text-2xl font-bold text-white">94%</p>
+              <p className="text-[10px] sm:text-[11px] text-white/35 uppercase tracking-wider mt-0.5">Completion Rate</p>
             </div>
           </div>
         </div>
 
         {/* Revenue Growth */}
-        <div className="bg-gradient-to-br from-[#7c5cfc] to-[#4f3cad] rounded-2xl p-6 relative overflow-hidden glow-purple">
+        <div className="bg-gradient-to-br from-[#7c5cfc] to-[#4f3cad] rounded-2xl p-4 sm:p-6 relative overflow-hidden glow-purple">
           <div className="absolute -right-6 -top-6 w-28 h-28 rounded-full
             bg-white/10 blur-2xl pointer-events-none" />
           <div className="relative">
             <TrendingUp className="w-6 h-6 text-white/80 mb-3" />
-            <p className="text-2xl font-bold text-white mb-2">Revenue Growth</p>
-            <p className="text-sm text-white/65">
+            <p className="text-xl sm:text-2xl font-bold text-white mb-2">Revenue Growth</p>
+            <p className="text-xs sm:text-sm text-white/65">
               +18.5% compared to last semester. Technical tracks are seeing record demand.
             </p>
           </div>
@@ -323,7 +323,7 @@ export default function CoursesPage() {
       ) : (
         <>
           {/* Course Grid */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
             {courses.map(course => (
               <CourseCard
                 key={course.id}

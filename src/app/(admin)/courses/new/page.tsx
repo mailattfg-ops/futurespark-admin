@@ -79,7 +79,7 @@ export default function NewProgramPage() {
   };
 
   return (
-    <div className="p-8 max-w-[600px]">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-[600px]">
       {/* Back link */}
       <Link
         href="/courses"
@@ -90,12 +90,12 @@ export default function NewProgramPage() {
       </Link>
 
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-2">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1 sm:mb-2 flex items-center gap-2">
           Create New Program
           <Sparkles className="w-5 h-5 text-[#7c5cfc]" />
         </h1>
-        <p className="text-white/45 text-sm">
+        <p className="text-white/45 text-xs sm:text-sm">
           Initiate a new structured learning vertical. Set the baseline metadata to populate curriculum parts.
         </p>
       </div>

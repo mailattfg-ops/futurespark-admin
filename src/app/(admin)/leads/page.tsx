@@ -325,25 +325,26 @@ export default function LeadsPage() {
   });
 
   return (
-    <div className="p-8 w-full">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
       {/* Header */}
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-2.5">
-            <Contact className="w-8 h-8 text-[#7c5cfc]" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1 sm:mb-2 flex items-center gap-2.5">
+            <Contact className="w-7 h-7 sm:w-8 sm:h-8 text-[#7c5cfc]" />
             Leads Management
           </h1>
-          <p className="text-white/45 text-sm max-w-md">
+          <p className="text-white/45 text-xs sm:text-sm max-w-md">
             Track and nurture student admissions leads, catalog course interests, and review pipeline status.
           </p>
         </div>
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-sm font-semibold transition-all shadow-lg"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+            bg-[#7c5cfc] hover:bg-[#6d4ef0] text-white text-xs sm:text-sm font-semibold transition-all shadow-lg
+            w-full sm:w-auto shrink-0 whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" />
-          ADD ADMISSION LEAD
+          <Plus className="w-4 h-4 shrink-0" />
+          <span>ADD ADMISSION LEAD</span>
         </button>
       </div>
 
@@ -356,7 +357,7 @@ export default function LeadsPage() {
 
       {/* Filters bar */}
       <div className="flex flex-col sm:flex-row gap-3 mb-6 items-center justify-between">
-        <div className="relative w-full max-w-sm">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3.5 top-3 w-4 h-4 text-white/20" />
           <input
             type="text"
@@ -368,12 +369,12 @@ export default function LeadsPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto self-stretch sm:self-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <Filter className="w-4 h-4 text-white/30 shrink-0" />
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="bg-[#161b27] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white/70
+            className="w-full sm:w-auto bg-[#161b27] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white/70
               focus:outline-none focus:border-[#7c5cfc] transition-all"
           >
             <option value="All">All Pipeline Statuses</option>
@@ -399,8 +400,8 @@ export default function LeadsPage() {
           <p className="text-white/25 text-xs mt-1">Start cataloging prospective student profiles.</p>
         </div>
       ) : (
-        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-hidden shadow-xl">
-          <table className="w-full text-left">
+        <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl overflow-x-auto shadow-xl">
+          <table className="w-full text-left min-w-[700px]">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.02] text-[10px] font-bold text-white/35 uppercase tracking-wider">
                 <th className="px-6 py-4">Lead Name</th>
