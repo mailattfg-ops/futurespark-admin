@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Calendar, Clock, Plus, Search, Loader2, AlertCircle, Trash2,
   AlertTriangle, Sparkles, X, User, RefreshCw, ChevronLeft, ChevronRight,
-  ChevronDown, Layers
+  ChevronDown, Layers, Play
 } from "lucide-react";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Toast } from "@/components/ui/toast";
@@ -139,6 +139,13 @@ export default function SchedulerPage() {
   const [classStatus, setClassStatus] = useState("SCHEDULED");
   const [meetingLink, setMeetingLink] = useState("");
   const [updateAllMeetingLinks, setUpdateAllMeetingLinks] = useState(true);
+  const [autoGenerateMeet, setAutoGenerateMeet] = useState(false);
+  const [recordingsList, setRecordingsList] = useState<any[]>([]);
+  const [selectedClassForRecording, setSelectedClassForRecording] = useState<ScheduledClass | null>(null);
+  const [showRecordingModal, setShowRecordingModal] = useState(false);
+  const [syncingRecording, setSyncingRecording] = useState(false);
+  const [transcriptContentMap, setTranscriptContentMap] = useState<Record<string, string>>({});
+  const [loadingTranscriptMap, setLoadingTranscriptMap] = useState<Record<string, boolean>>({});
 
   // Week start state for Google Calendar-style Grid
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
@@ -186,13 +193,14 @@ export default function SchedulerPage() {
   const fetchData = async () => {
     try {
       const headers = getHeaders();
-      const [resStuds, resProgs, resSess, resMents, resScheds, resLeads] = await Promise.all([
+      const [resStuds, resProgs, resSess, resMents, resScheds, resLeads, resRecordings] = await Promise.all([
         fetch("/api/users/customers/students", { headers }),
         fetch("/api/courses", { headers }),
         fetch("/api/courses/sessions", { headers }),
         fetch("/api/schedules/mentors", { headers }),
         fetch("/api/schedules", { headers }),
         fetch("/api/courses/leads", { headers }),
+        fetch("/api/google/recordings", { headers }).catch(() => null), // fail-safe if service is not reachable
       ]);
 
       if (resStuds.status === 401 || resScheds.status === 401) {
@@ -208,6 +216,7 @@ export default function SchedulerPage() {
       const dataMents = await resMents.json();
       const dataScheds = await resScheds.json();
       const dataLeads = await resLeads.json();
+      const dataRecordings = resRecordings ? await resRecordings.json() : { success: false, data: [] };
 
       if (
         !dataStuds.success ||
@@ -226,6 +235,7 @@ export default function SchedulerPage() {
       setMentors(dataMents.data || []);
       setSchedules(dataScheds.data || []);
       setLeads(dataLeads.data || []);
+      setRecordingsList(dataRecordings.success ? dataRecordings.data : []);
     } catch (err: any) {
       setError(err.message || "Failed to load scheduler directory");
     } finally {
@@ -424,6 +434,7 @@ export default function SchedulerPage() {
     setSelectedMentorId("");
     setClassStatus("SCHEDULED");
     setMeetingLink("");
+    setAutoGenerateMeet(false);
     const today = new Date();
     const day = today.getDay();
     const diff = today.getDate() - day;
@@ -443,6 +454,7 @@ export default function SchedulerPage() {
     setSelectedMentorId("");
     setClassStatus("SCHEDULED");
     setMeetingLink("");
+    setAutoGenerateMeet(false);
     const today = new Date();
     const day = today.getDay();
     const diff = today.getDate() - day;
@@ -466,6 +478,7 @@ export default function SchedulerPage() {
     setSelectedMentorId(c.mentorId);
     setClassStatus(c.status);
     setMeetingLink(c.meetingLink || "");
+    setAutoGenerateMeet(false);
     
     // Set week starting date based on the class date
     const day = localDate.getDay();
@@ -502,6 +515,65 @@ export default function SchedulerPage() {
     setActionLoading(true);
     try {
       const headers = getHeaders();
+      let finalMeetingLink = meetingLink.trim() || null;
+
+      // ⚡ Auto-generate Google Meet if checkbox is selected
+      if (autoGenerateMeet && !isEdit) {
+        const student = students.find((s) => s.id === selectedStudentId);
+        const program = programs.find((p) => p.id === selectedProgramId);
+        const mentor = mentors.find((m) => m.id === selectedMentorId);
+
+        const studentName = student ? `${student.firstName} ${student.lastName}` : "Student";
+        const programName = program ? program.title : "Program";
+        const mentorName = mentor ? `${mentor.firstName} ${mentor.lastName}` : "Mentor";
+
+        const title = selectedClassType === "DEMO"
+          ? `Demo Class - ${programName}`
+          : `${programName} Session with ${studentName}`;
+
+        const description = selectedClassType === "DEMO"
+          ? `Demo Class Session with mentor ${mentorName}`
+          : `Regular FutureSpark session with mentor ${mentorName} and student ${studentName}`;
+
+        const startTimeIso = new Date(classDateTime).toISOString();
+        const endTimeIso = new Date(new Date(classDateTime).getTime() + 90 * 60 * 1000).toISOString();
+
+        // Build list of participant emails
+        const attendees: string[] = [];
+        if (mentor?.email) attendees.push(mentor.email);
+        if (selectedClassType === "DEMO") {
+          const lead = leads.find((l) => l.id === selectedLeadId);
+          if (lead?.email) attendees.push(lead.email);
+        } else {
+          if (student?.email) attendees.push(student.email);
+        }
+
+        const googleRes = await fetch("/api/google/meetings", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            workspaceEmail: "meetings.finquojunior@gmail.com",
+            title,
+            description,
+            startTime: startTimeIso,
+            endTime: endTimeIso,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+            attendees,
+            teacherId: selectedMentorId,
+            studentId: selectedStudentId || selectedLeadId || "DEMO_STUDENT",
+            programId: selectedProgramId,
+            sessionId: selectedSessionId || "demo",
+          }),
+        });
+
+        const googleData = await googleRes.json();
+        if (!googleRes.ok || !googleData.success) {
+          throw new Error(googleData.message || "Failed to auto-generate Google Meet link.");
+        }
+
+        finalMeetingLink = googleData.data.meetLink;
+      }
+
       const url = isEdit ? `/api/schedules/${selectedClass.id}` : "/api/schedules";
       const method = isEdit ? "PUT" : "POST";
 
@@ -511,7 +583,7 @@ export default function SchedulerPage() {
         .map((s) => ({ id: s.id, order: s.order }));
 
       const payload = isEdit
-        ? { startTime: new Date(classDateTime).toISOString(), status: classStatus, mentorId: selectedMentorId, meetingLink: meetingLink.trim() || null, updateAll: updateAllMeetingLinks }
+        ? { startTime: new Date(classDateTime).toISOString(), status: classStatus, mentorId: selectedMentorId, meetingLink: finalMeetingLink, updateAll: updateAllMeetingLinks }
         : selectedClassType === "DEMO"
         ? {
             leadId: selectedLeadId,
@@ -519,7 +591,7 @@ export default function SchedulerPage() {
             programId: selectedProgramId,
             startTime: new Date(classDateTime).toISOString(),
             classType: "DEMO",
-            meetingLink: meetingLink.trim() || undefined,
+            meetingLink: finalMeetingLink || undefined,
           }
         : {
             studentId: selectedStudentId,
@@ -528,7 +600,7 @@ export default function SchedulerPage() {
             sessions: programSessions,
             startTime: new Date(classDateTime).toISOString(),
             classType: "REGULAR",
-            meetingLink: meetingLink.trim() || undefined,
+            meetingLink: finalMeetingLink || undefined,
           };
 
       const res = await fetch(url, {
@@ -573,6 +645,116 @@ export default function SchedulerPage() {
         }
       },
     });
+  };
+
+  const handleSyncRecording = async () => {
+    if (!selectedClassForRecording) return;
+    setSyncingRecording(true);
+    try {
+      const program = programs.find((p) => p.id === selectedClassForRecording.programId);
+      const programTitle = program ? program.title : "Program";
+
+      // 1. Sync manual meeting metadata first
+      const syncMeetRes = await fetch("/api/google/meetings/sync-manual", {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          meetingLink: selectedClassForRecording.meetingLink,
+          title: `${selectedClassForRecording.classType === 'DEMO' ? 'Demo' : 'Regular'} Class - ${programTitle}`,
+          startTime: selectedClassForRecording.startTime,
+          endTime: selectedClassForRecording.endTime,
+          organizerEmail: "meetings.finquojunior@gmail.com",
+          teacherId: selectedClassForRecording.mentorId,
+          studentId: selectedClassForRecording.studentId || selectedClassForRecording.leadId || "DEMO_STUDENT",
+          programId: selectedClassForRecording.programId,
+          sessionId: selectedClassForRecording.sessionId || "demo",
+        }),
+      });
+
+      const syncMeetData = await syncMeetRes.json();
+      if (!syncMeetRes.ok || !syncMeetData.success) {
+        throw new Error(syncMeetData.message || "Failed to link class meeting metadata.");
+      }
+
+      // 2. Trigger Google Drive recording sync check
+      const syncRecRes = await fetch("/api/google/recordings/sync", {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ meetingId: syncMeetData.data.id }),
+      });
+
+      const syncRecData = await syncRecRes.json();
+      if (!syncRecRes.ok || !syncRecData.success) {
+        throw new Error(syncRecData.message || "No matching recording found on Google Drive yet.");
+      }
+
+      setToast({ message: "Recording synced successfully from Google Drive!", type: "success" });
+      fetchData();
+    } catch (err: any) {
+      setToast({ message: err.message || "Recording not found on Google Drive.", type: "error" });
+    } finally {
+      setSyncingRecording(false);
+    }
+  };
+
+  const handleDownloadVideo = async (recId: string) => {
+    setSyncingRecording(true);
+    try {
+      const res = await fetch(`/api/google/recordings/${recId}/download`, {
+        method: "POST",
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to download recording file to server.");
+      }
+      setToast({ message: "Video download started/completed on server!", type: "success" });
+      fetchData();
+    } catch (err: any) {
+      setToast({ message: err.message, type: "error" });
+    } finally {
+      setSyncingRecording(false);
+    }
+  };
+
+  const handleExtractAudio = async (recId: string) => {
+    setSyncingRecording(true);
+    try {
+      const res = await fetch(`/api/google/recordings/${recId}/extract-audio`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ format: "mp3" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Audio extraction job failed on server.");
+      }
+      setToast({ message: "Audio track extracted successfully!", type: "success" });
+      fetchData();
+    } catch (err: any) {
+      setToast({ message: err.message, type: "error" });
+    } finally {
+      setSyncingRecording(false);
+    }
+  };
+
+  const loadTranscriptContent = async (recId: string) => {
+    setLoadingTranscriptMap((prev) => ({ ...prev, [recId]: true }));
+    try {
+      const res = await fetch(`/api/google/recordings/${recId}/transcript`, {
+        headers: getHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTranscriptContentMap((prev) => ({ ...prev, [recId]: data.data.content }));
+      } else {
+        setToast({ message: data.message || "Failed to load transcript text content.", type: "error" });
+      }
+    } catch (err: any) {
+      setToast({ message: err.message, type: "error" });
+    } finally {
+      setLoadingTranscriptMap((prev) => ({ ...prev, [recId]: false }));
+    }
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -936,6 +1118,20 @@ export default function SchedulerPage() {
                                     >
                                       {c.status}
                                     </span>
+                                    {c.meetingLink && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedClassForRecording(c);
+                                          setShowRecordingModal(true);
+                                        }}
+                                        className="p-1 hover:text-[#00d4aa] text-white/30 transition-colors"
+                                        title="View Meeting Recording"
+                                      >
+                                        <Play className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       onClick={(e) => {
@@ -1170,6 +1366,17 @@ export default function SchedulerPage() {
                             Ended
                           </span>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedClassForRecording(c);
+                            setShowRecordingModal(true);
+                          }}
+                          className="px-2 py-1 rounded bg-[#00d4aa]/10 hover:bg-[#00d4aa]/20 border border-[#00d4aa]/20 hover:border-[#00d4aa]/40 text-[#00d4aa] text-[9px] font-bold tracking-wide transition-all inline-flex items-center gap-1 uppercase"
+                          title="View Recording"
+                        >
+                          🎥 Recording
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -1770,16 +1977,34 @@ export default function SchedulerPage() {
 
               {/* Meeting Link (Google Meet / Zoom / WebRTC) */}
               <div>
-                <label className="block text-[10px] text-white/45 font-bold uppercase tracking-wide mb-1.5 flex items-center gap-1.5">
-                  🔗 Meeting Link (Optional)
-                  <span className="text-[9px] font-normal text-white/30 normal-case">(Google Meet, Zoom, Teams…)</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[10px] text-white/45 font-bold uppercase tracking-wide flex items-center gap-1.5">
+                    🔗 Meeting Link (Optional)
+                  </label>
+                  {!selectedClass && (
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={autoGenerateMeet}
+                        onChange={(e) => {
+                          setAutoGenerateMeet(e.target.checked);
+                          if (e.target.checked) setMeetingLink("");
+                        }}
+                        className="w-3.5 h-3.5 rounded accent-[#7c5cfc]"
+                      />
+                      <span className="text-[9px] text-[#7c5cfc] font-bold uppercase tracking-wide">
+                        ⚡ Auto-Generate Google Meet
+                      </span>
+                    </label>
+                  )}
+                </div>
                 <input
                   type="url"
                   value={meetingLink}
                   onChange={(e) => setMeetingLink(e.target.value)}
-                  placeholder="https://meet.google.com/abc-defg-hij"
-                  className="w-full bg-[#13161e] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white placeholder-white/20 focus:border-[#00d4aa] focus:outline-none transition-all"
+                  disabled={autoGenerateMeet}
+                  placeholder={autoGenerateMeet ? "Google Meet link will be generated automatically..." : "https://meet.google.com/abc-defg-hij"}
+                  className="w-full bg-[#13161e] border border-white/[0.07] rounded-xl px-3 py-2 text-xs text-white placeholder-white/20 focus:border-[#00d4aa] focus:outline-none transition-all disabled:opacity-50"
                 />
                 {meetingLink && (
                   <a
@@ -2039,6 +2264,277 @@ export default function SchedulerPage() {
         onConfirm={confirmModal.onConfirm}
         onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
       />
+
+      {/* Modal: Class Meeting Recording */}
+      {showRecordingModal && selectedClassForRecording && (
+        <div className="fixed inset-0 z-50 bg-[#080a10]/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#161b27] border border-white/[0.08] rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-white/[0.01]">
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <Play className="w-4 h-4 text-[#00d4aa]" />
+                Class Session Recording Manager
+              </h2>
+              <button
+                onClick={() => {
+                  setShowRecordingModal(false);
+                  setSelectedClassForRecording(null);
+                }}
+                className="text-white/40 hover:text-white transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Class Info Card */}
+              <div className="bg-white/[0.02] border border-white/[0.05] rounded-2xl p-4 text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-white/40 font-bold uppercase tracking-wider text-[9px]">Class Type</span>
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-extrabold uppercase border ${
+                    selectedClassForRecording.classType === "DEMO"
+                      ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+                      : "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                  }`}>
+                    {selectedClassForRecording.classType || "REGULAR"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/40 font-bold uppercase tracking-wider text-[9px]">Student</span>
+                  <span className="font-semibold text-white/80">
+                    {(() => {
+                      if (selectedClassForRecording.classType === "DEMO") {
+                        const lead = leads.find((l) => l.id === selectedClassForRecording.leadId);
+                        return lead ? `${lead.firstName} ${lead.lastName}` : "Unknown Lead";
+                      }
+                      return selectedClassForRecording.student
+                        ? `${selectedClassForRecording.student.firstName} ${selectedClassForRecording.student.lastName}`
+                        : "Unknown Student";
+                    })()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/40 font-bold uppercase tracking-wider text-[9px]">Mentor</span>
+                  <span className="font-semibold text-[#60a5fa]">
+                    {selectedClassForRecording.mentor?.firstName} {selectedClassForRecording.mentor?.lastName}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-white/40 font-bold uppercase tracking-wider text-[9px]">Schedule Time</span>
+                  <span className="font-medium text-white/70">
+                    {new Date(selectedClassForRecording.startTime).toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })}{" "}
+                    at{" "}
+                    {new Date(selectedClassForRecording.startTime).toLocaleTimeString("en-GB", {
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </span>
+                </div>
+                {selectedClassForRecording.meetingLink && (
+                  <div className="flex flex-col pt-2 border-t border-white/[0.04]">
+                    <span className="text-white/40 font-bold uppercase tracking-wider text-[9px] mb-1">Meeting Link</span>
+                    <a
+                      href={selectedClassForRecording.meetingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-[#00d4aa] hover:underline truncate animate-pulse"
+                    >
+                      {selectedClassForRecording.meetingLink}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Recordings List */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Google Drive Recording Files
+                </h3>
+
+                {(() => {
+                  const classRecs = recordingsList.filter(
+                    (rec) => rec.meeting?.meetUrl === selectedClassForRecording.meetingLink
+                  );
+
+                  if (classRecs.length === 0) {
+                    return (
+                      <div className="bg-[#13161e] border border-white/[0.05] rounded-2xl p-6 text-center space-y-4">
+                        <p className="text-xs text-white/35 italic">
+                          No recording file is linked to this session's Google Meet room yet.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleSyncRecording}
+                          disabled={syncingRecording || !selectedClassForRecording.meetingLink}
+                          className="px-4 py-2 bg-[#00d4aa]/10 hover:bg-[#00d4aa]/25 text-[#00d4aa] border border-[#00d4aa]/20 rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-1.5 disabled:opacity-30"
+                        >
+                          {syncingRecording ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Play className="w-3.5 h-3.5" />
+                          )}
+                          Scan Google Drive for Recording
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return classRecs.map((rec) => {
+                    const isTranscript = rec.fileName.toLowerCase().includes("transcript");
+                    return (
+                      <div key={rec.id} className="bg-white/[0.015] border border-white/[0.06] rounded-2xl p-4 space-y-4 animate-in slide-in-from-bottom duration-250">
+                        {/* File Details */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span className="font-semibold text-white text-xs block truncate max-w-[320px]">
+                              {isTranscript ? "📄 " : "🎥 "} {rec.fileName}
+                            </span>
+                            <span className="text-[10px] text-white/30 font-medium">
+                              {isTranscript ? "Google Meet Transcript Document" : `${(rec.fileSize / (1024 * 1024)).toFixed(1)} MB`}
+                            </span>
+                          </div>
+                          <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase border ${
+                            rec.downloadStatus === "COMPLETED"
+                              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                              : rec.downloadStatus === "FAILED"
+                              ? "bg-red-500/10 border-red-500/20 text-red-400"
+                              : "bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse"
+                          }`}>
+                            {rec.downloadStatus === "COMPLETED" ? "Ready" : rec.downloadStatus}
+                          </span>
+                        </div>
+
+                        {/* Download Flow */}
+                        {rec.downloadStatus !== "COMPLETED" ? (
+                          <div className="bg-[#13161e] p-3 rounded-xl flex items-center justify-between gap-3 border border-white/[0.03]">
+                            <span className="text-[10px] text-white/40 font-medium">
+                              {isTranscript
+                                ? "Transcript is on Cloud Drive. Download as plain text to view content."
+                                : "File is located in Cloud Drive. Download is required to enable streaming."}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadVideo(rec.id)}
+                              disabled={syncingRecording}
+                              className="px-3.5 py-2 bg-[#7c5cfc]/10 hover:bg-[#7c5cfc]/20 text-[#7c5cfc] border border-[#7c5cfc]/30 rounded-xl text-[10px] font-bold transition-all shrink-0 inline-flex items-center gap-1"
+                            >
+                              {syncingRecording && <Loader2 className="w-3 h-3 animate-spin" />}
+                              Download
+                            </button>
+                          </div>
+                        ) : isTranscript ? (
+                          /* Transcript View Flow */
+                          <div className="space-y-3 pt-2 border-t border-white/[0.04]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] text-white/30 uppercase font-bold tracking-wider">
+                                📖 Transcript Content
+                              </span>
+                              {!transcriptContentMap[rec.id] && (
+                                <button
+                                  type="button"
+                                  onClick={() => loadTranscriptContent(rec.id)}
+                                  disabled={loadingTranscriptMap[rec.id]}
+                                  className="px-2.5 py-1 bg-[#00d4aa]/10 hover:bg-[#00d4aa]/25 text-[#00d4aa] border border-[#00d4aa]/30 rounded-lg text-[9px] font-bold transition-all inline-flex items-center gap-1"
+                                >
+                                  {loadingTranscriptMap[rec.id] && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+                                  Load Content
+                                </button>
+                              )}
+                            </div>
+                            {transcriptContentMap[rec.id] ? (
+                              <div className="bg-[#13161e] border border-white/[0.05] rounded-xl p-4 text-[10px] text-white/70 max-h-[220px] overflow-y-auto whitespace-pre-wrap font-mono leading-relaxed select-text">
+                                {transcriptContentMap[rec.id]}
+                              </div>
+                            ) : (
+                              <div className="bg-[#13161e] border border-dashed border-white/5 rounded-xl p-4 text-center text-[10px] text-white/20 italic">
+                                Content not loaded. Click the button above to fetch.
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          /* Regular Video/Audio Flow */
+                          <div className="space-y-4 pt-2 border-t border-white/[0.04]">
+                            {/* Video Player */}
+                            <div>
+                              <span className="text-[9px] text-white/30 uppercase font-bold tracking-wider block mb-1">
+                                🎥 Video Playback
+                              </span>
+                              <video
+                                src={`/api/google/recordings/${rec.id}/stream`}
+                                controls
+                                className="w-full rounded-xl border border-white/10 bg-black max-h-[220px]"
+                              />
+                            </div>
+
+                            {/* Audio Flow */}
+                            <div className="bg-[#13161e] p-3 rounded-xl space-y-3 border border-white/[0.03]">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[9px] text-white/30 uppercase font-bold tracking-wider">
+                                  🎙️ Audio Track
+                                </span>
+                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase border ${
+                                  rec.extractedAudioStatus === "COMPLETED"
+                                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                                    : rec.extractedAudioStatus === "FAILED"
+                                    ? "bg-red-500/10 border-red-500/20 text-red-400"
+                                    : "bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse"
+                                }`}>
+                                  {rec.extractedAudioStatus === "COMPLETED" ? "Extracted" : rec.extractedAudioStatus}
+                                </span>
+                              </div>
+
+                              {rec.extractedAudioStatus !== "COMPLETED" ? (
+                                <div className="flex items-center justify-between gap-3 pt-1">
+                                  <span className="text-[10px] text-white/40 font-medium leading-relaxed">
+                                    Extract clean audio files to support student review and analytics models.
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleExtractAudio(rec.id)}
+                                    disabled={syncingRecording}
+                                    className="px-3 py-2 bg-[#00d4aa]/10 hover:bg-[#00d4aa]/25 text-[#00d4aa] border border-[#00d4aa]/20 rounded-xl text-[10px] font-bold transition-all shrink-0 inline-flex items-center gap-1"
+                                  >
+                                    {syncingRecording && <Loader2 className="w-3 h-3 animate-spin" />}
+                                    Extract
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="pt-1">
+                                  <audio
+                                    src={`/api/google/recordings/${rec.id}/stream?type=audio`}
+                                    controls
+                                    className="w-full bg-[#161b27] rounded-xl border border-white/5 h-9"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            <div className="flex justify-end p-6 border-t border-white/[0.06] bg-white/[0.01]">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRecordingModal(false);
+                  setSelectedClassForRecording(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.07] hover:bg-white/[0.06] text-white/80 text-xs font-bold transition-all"
+              >
+                Close Manager
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
