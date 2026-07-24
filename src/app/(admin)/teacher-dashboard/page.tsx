@@ -79,19 +79,19 @@ export default function TeacherDashboard() {
   const activeAssignedCount = schedules.filter((c) => c.status === "SCHEDULED").length;
 
   return (
-    <div className="p-8 w-full max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-[#7c5cfc]/20 to-[#00d4aa]/15 border border-white/[0.08] rounded-3xl p-8 mb-8 shadow-2xl">
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#7c5cfc]/20 to-[#00d4aa]/15 border border-white/[0.08] rounded-2xl sm:rounded-3xl p-5 sm:p-8 mb-6 sm:mb-8 shadow-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-[#7c5cfc]/10 rounded-full blur-[80px] pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#7c5cfc]/20 text-[#a78bfa] text-[10px] font-bold uppercase tracking-wider mb-3 border border-[#7c5cfc]/30">
               <Shield className="w-3.5 h-3.5" /> Staff Role: Mentor / Teacher
             </span>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Welcome back, {teacherName}
             </h1>
-            <p className="text-white/45 text-sm mt-1">{teacherEmail}</p>
+            <p className="text-white/45 text-xs sm:text-sm mt-1">{teacherEmail}</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3 bg-[#13161e]/70 border border-white/[0.08] rounded-2xl p-3.5">

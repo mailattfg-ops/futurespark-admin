@@ -541,22 +541,22 @@ export default function FinanceDashboard() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-8 w-full max-w-7xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto space-y-6 sm:space-y-8">
       {/* Header Banner */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-green-500/15 to-teal-500/10 border border-white/[0.08] rounded-3xl p-8 shadow-2xl">
+      <div className="relative overflow-hidden bg-gradient-to-r from-green-500/15 to-teal-500/10 border border-white/[0.08] rounded-2xl sm:rounded-3xl p-5 sm:p-8 shadow-2xl">
         <div className="relative z-10">
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-500/10 text-green-400 text-[10px] font-bold uppercase tracking-wider mb-3 border border-green-500/20">
             <ShieldCheck className="w-3.5 h-3.5" /> Staff Role: Finance Manager
           </span>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             Financial Analytics & Billing
           </h1>
-          <p className="text-white/45 text-sm mt-1">Logged in as: {userName} ({userEmail})</p>
+          <p className="text-white/45 text-xs sm:text-sm mt-1">Logged in as: {userName} ({userEmail})</p>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         <div className="bg-[#161b27] border border-white/[0.07] rounded-2xl p-5 flex flex-col gap-3 shadow-xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-white/50">Total Subscriptions</span>

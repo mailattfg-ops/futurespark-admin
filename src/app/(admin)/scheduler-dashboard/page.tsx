@@ -19,16 +19,16 @@ export default function SchedulerDashboard() {
   }, []);
 
   return (
-    <div className="p-8 w-full">
-      <div className="relative overflow-hidden bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-white/[0.08] rounded-3xl p-8 mb-8 shadow-2xl">
+    <div className="p-4 sm:p-6 md:p-8 w-full">
+      <div className="relative overflow-hidden bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-white/[0.08] rounded-2xl sm:rounded-3xl p-5 sm:p-8 mb-6 sm:mb-8 shadow-2xl">
         <div className="relative z-10">
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 text-[10px] font-bold uppercase tracking-wider mb-3 border border-purple-500/20">
             <ShieldCheck className="w-3.5 h-3.5" /> Staff Role: Scheduler
           </span>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
             Scheduling & Time-Fixing Engine
           </h1>
-          <p className="text-white/45 text-sm mt-1">Logged in as: {userName} ({userEmail})</p>
+          <p className="text-white/45 text-xs sm:text-sm mt-1">Logged in as: {userName} ({userEmail})</p>
         </div>
       </div>
 

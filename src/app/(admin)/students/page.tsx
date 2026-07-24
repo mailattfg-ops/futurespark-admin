@@ -394,14 +394,14 @@ export default function StudentsPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-8 w-full animate-fadeIn">
+    <div className="p-4 sm:p-6 md:p-8 w-full animate-fadeIn">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white tracking-tight mb-2 flex items-center gap-3">
-          <User className="w-8 h-8 text-[#00d4aa]" />
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight mb-1 sm:mb-2 flex items-center gap-3">
+          <User className="w-7 h-7 sm:w-8 sm:h-8 text-[#00d4aa]" />
           Students Directory
         </h1>
-        <p className="text-white/40 text-sm">
+        <p className="text-white/40 text-xs sm:text-sm">
           Review, search, and manage independent student logins — including their scheduled classes.
         </p>
       </div>
@@ -414,7 +414,7 @@ export default function StudentsPage() {
       )}
 
       {/* Filter Bar */}
-      <div className="relative w-full max-w-sm mb-6">
+      <div className="relative w-full sm:max-w-sm mb-6">
         <Search className="absolute left-3.5 top-3 w-4 h-4 text-white/20" />
         <input
           type="text"
